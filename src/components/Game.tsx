@@ -137,17 +137,17 @@ export default function Game() {
   }, []);
 
   const handleCardDragEnd = useCallback((cardId: string, x: number, y: number) => {
-    // Trash can is at bottom left of desk
+    // Trash can is at bottom center of desk
     const cardCenterX = x + 55;
     const cardCenterY = y + 70;
 
     const deskEl = document.querySelector('[data-desk="true"]');
-    let trashX = 50; // bottom left
+    let trashX = 400; // fallback center
     let trashY = 500;
     if (deskEl) {
       const rect = deskEl.getBoundingClientRect();
-      trashX = 50; // left offset + half of trash can width (20px + 40px)
-      trashY = rect.height - 50; // bottom offset + half of trash can height
+      trashX = rect.width / 2; // center
+      trashY = rect.height - 50; // bottom
     }
 
     const dist = Math.sqrt((cardCenterX - trashX) ** 2 + (cardCenterY - trashY) ** 2);
@@ -370,14 +370,14 @@ export default function Game() {
                 })
               )}
 
-              {/* Trash Can - BIG and VISIBLE */}
-              <div className="absolute bottom-2 left-2 z-50">
+              {/* Trash Can - centered at bottom of desk */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-50">
                 <div className="relative group">
                   {/* Red glow background */}
                   <div className="absolute -inset-3 rounded-2xl bg-red-500/10 group-hover:bg-red-500/30 transition-all duration-300 blur-sm" />
 
                   <div className="relative flex flex-col items-center">
-                    {/* Can body - bright red! */}
+                    {/* Can body */}
                     <div className="w-[72px] h-[88px] rounded-b-xl overflow-hidden relative shadow-2xl transition-all group-hover:scale-110 group-hover:shadow-red-500/40"
                       style={{
                         background: "linear-gradient(180deg, #dc2626, #b91c1c, #991b1b)",
@@ -386,27 +386,21 @@ export default function Game() {
                         borderRadius: "6px 6px 14px 14px",
                         boxShadow: "0 6px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
                       }}>
-                      {/* Lid */}
                       <div className="absolute -top-3 -left-1.5 -right-1.5 h-4 rounded-t-md"
                         style={{ background: "linear-gradient(180deg, #f87171, #dc2626)", border: "2px solid #fecaca", borderBottom: "none" }} />
-                      {/* Handle */}
                       <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-10 h-2.5 rounded-full"
                         style={{ background: "#fecaca", boxShadow: "0 2px 4px rgba(0,0,0,0.3)" }} />
-                      {/* Opening */}
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-2.5 rounded-sm bg-black/50" />
-                      {/* Stripes */}
                       <div className="absolute top-5 left-0 right-0 flex justify-center gap-2">
                         {[0, 1, 2, 3].map((i) => (
                           <div key={i} className="w-1 h-9 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />
                         ))}
                       </div>
-                      {/* Icon */}
                       <div className="absolute inset-0 flex items-center justify-center pt-2">
                         <span className="text-3xl drop-shadow-lg">🗑️</span>
                       </div>
                     </div>
 
-                    {/* Label */}
                     <div className="text-[10px] text-red-400 mt-1 font-black text-center tracking-widest group-hover:text-red-300 transition-colors">
                       TRASH
                     </div>
