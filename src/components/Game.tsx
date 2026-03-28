@@ -26,6 +26,7 @@ import CardShop from "./Shop";
 import UpgradeShop from "./UpgradeShop";
 import PrestigePanel from "./PrestigePanel";
 import StatsPanel from "./StatsPanel";
+import DayJob from "./DayJob";
 import NotificationToast, { JackpotOverlay } from "./Notifications";
 import { formatMoney } from "@/lib/gameData";
 
@@ -151,20 +152,18 @@ export default function Game() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Day Job */}
-              {state.balance < 1000 && (
+              {/* Day Job - compact in header */}
+              {state.balance < 1000 && state.dayJobCooldown > 0 && (
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-800 text-neutral-500 text-xs">
+                  🧽 {state.dayJobCooldown}s
+                </div>
+              )}
+              {state.balance < 1000 && state.dayJobCooldown === 0 && (
                 <button
                   onClick={handleDayJob}
-                  disabled={state.dayJobCooldown > 0}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    state.dayJobCooldown > 0
-                      ? "bg-neutral-800 text-neutral-500"
-                      : "bg-amber-600 text-white hover:bg-amber-500 active:scale-95"
-                  }`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-500 active:scale-95 transition-all"
                 >
-                  🧽 {state.dayJobCooldown > 0
-                    ? `${state.dayJobCooldown}s`
-                    : `Wash ($${5 * state.dayJobLevel})`}
+                  🧽 ${5 * state.dayJobLevel}
                 </button>
               )}
 
@@ -268,36 +267,45 @@ export default function Game() {
 
             {/* No cards */}
             {!activeCard && unrevealedCards.length === 0 && (
-              <div className="text-center py-16">
-                <div className="text-6xl mb-4">🎫</div>
-                <h2 className="text-2xl font-bold text-neutral-300 mb-2">
-                  No Cards Yet!
-                </h2>
-                <p className="text-neutral-500 mb-2">
-                  {state.balance < 10
-                    ? "Wash some dishes to earn money first!"
-                    : "Buy your first scratch card from the shop."}
-                </p>
-                {state.balance < 10 && (
-                  <button
-                    onClick={handleDayJob}
-                    disabled={state.dayJobCooldown > 0}
-                    className={`px-6 py-3 rounded-xl font-semibold transition-all mb-4 ${
-                      state.dayJobCooldown > 0
-                        ? "bg-neutral-700 text-neutral-500"
-                        : "bg-amber-600 text-white hover:bg-amber-500 active:scale-95"
-                    }`}
-                  >
-                    🧽 Wash Dishes ($5)
-                  </button>
-                )}
-                {state.balance >= 10 && (
-                  <button
-                    onClick={() => setActiveTab("shop")}
-                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-xl text-white font-semibold hover:from-emerald-500 hover:to-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
-                  >
-                    Go to Shop
-                  </button>
+              <div className="flex flex-col items-center py-12 gap-6 animate-slide-up">
+                {state.balance < 10 ? (
+                  <>
+                    <div className="text-center mb-2">
+                      <div className="text-5xl mb-3 animate-float">🍽️</div>
+                      <h2 className="text-xl font-bold text-neutral-300 mb-1">
+                        Time to Work!
+                      </h2>
+                      <p className="text-neutral-500 text-sm">
+                        Wash dishes to earn money for your first scratch card.
+                      </p>
+                    </div>
+                    <DayJob
+                      level={state.dayJobLevel}
+                      cooldown={state.dayJobCooldown}
+                      onWork={handleDayJob}
+                    />
+                    {state.balance > 0 && state.balance < 10 && (
+                      <div className="text-xs text-neutral-600">
+                        ${state.balance} / $10 needed for first card
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-6xl mb-4 animate-bounce-in">🎫</div>
+                    <h2 className="text-2xl font-bold text-neutral-300 mb-2">
+                      Ready to Scratch!
+                    </h2>
+                    <p className="text-neutral-500 mb-4">
+                      You have {formatMoney(state.balance)} — time to buy your first card!
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("shop")}
+                      className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-xl text-white font-semibold hover:from-emerald-500 hover:to-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-900/30 animate-pulse-glow"
+                    >
+                      Go to Shop
+                    </button>
+                  </>
                 )}
               </div>
             )}
