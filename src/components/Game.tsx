@@ -22,6 +22,7 @@ import {
 import { formatMoney, SYMBOLS } from "@/lib/gameData";
 import ScratchCard from "./ScratchCard";
 import DeskCard from "./DeskCard";
+import FanGadget from "./FanGadget";
 import DayJob from "./DayJob";
 import NotificationToast, { JackpotOverlay } from "./Notifications";
 
@@ -298,6 +299,11 @@ export default function Game() {
               <div className="absolute inset-0 opacity-3"
                 style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(139,90,43,0.3) 40px, rgba(139,90,43,0.3) 41px)" }} />
 
+              {/* Fan Gadget */}
+              {state.upgrades.find((u) => u.id === "fan" && u.purchased) && (
+                <FanGadget onFanAll={fanAllToRobot} cardCount={deskOnly.length} />
+              )}
+
               {deskOnly.length === 0 ? (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
@@ -411,12 +417,6 @@ export default function Game() {
                   })}
                 </div>
               </div>}
-              {state.upgrades.find((u) => u.id === "fan" && u.purchased) && deskOnly.length > 0 && (
-                <button onClick={fanAllToRobot}
-                  className="w-full mt-2 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r from-cyan-700 to-cyan-600 text-white hover:from-cyan-600 hover:to-cyan-500 transition-all">
-                  🌀 Push All ({deskOnly.length})
-                </button>
-              )}
             </div>
           </div>
         )}
