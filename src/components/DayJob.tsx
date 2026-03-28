@@ -17,6 +17,9 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
   >([]);
   const [moneyPopup, setMoneyPopup] = useState(false);
   const [key, setKey] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isInside, setIsInside] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const bubbleIdRef = useRef(0);
@@ -26,7 +29,6 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
 
   const earnings = 5 * level;
 
-  // Reset state when active changes - use setTimeout to avoid render-time setState
   useEffect(() => {
     if (active) {
       const timer = setTimeout(() => {
@@ -103,7 +105,7 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Decorative pattern on plate rim
+    // Decorative dots on rim
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
       const r = plateR * 0.86;
@@ -113,35 +115,48 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       ctx.fill();
     }
 
-    // Draw dirt
-    const dirtSpots = 30 + Math.floor(Math.random() * 20);
+    // Lots of dirt spots - harder to clean
+    const dirtSpots = 50 + Math.floor(Math.random() * 30);
     for (let i = 0; i < dirtSpots; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * plateR * 0.65;
+      const dist = Math.random() * plateR * 0.68;
       const x = cx + Math.cos(angle) * dist;
       const y = cy + Math.sin(angle) * dist;
-      const size = 6 + Math.random() * 22;
+      const size = 8 + Math.random() * 25;
 
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       const r = Math.random();
-      if (r < 0.25) ctx.fillStyle = "rgba(90, 60, 25, 0.55)";
-      else if (r < 0.5) ctx.fillStyle = "rgba(70, 55, 25, 0.45)";
-      else if (r < 0.7) ctx.fillStyle = "rgba(100, 75, 35, 0.4)";
-      else if (r < 0.85) ctx.fillStyle = "rgba(50, 70, 30, 0.35)";
-      else ctx.fillStyle = "rgba(110, 80, 40, 0.5)";
+      if (r < 0.2) ctx.fillStyle = "rgba(90, 60, 25, 0.6)";
+      else if (r < 0.4) ctx.fillStyle = "rgba(70, 55, 25, 0.5)";
+      else if (r < 0.6) ctx.fillStyle = "rgba(100, 75, 35, 0.45)";
+      else if (r < 0.75) ctx.fillStyle = "rgba(50, 70, 30, 0.4)";
+      else if (r < 0.9) ctx.fillStyle = "rgba(110, 80, 40, 0.55)";
+      else ctx.fillStyle = "rgba(80, 50, 20, 0.5)";
       ctx.fill();
     }
 
-    // Greasy smears
-    for (let i = 0; i < 6; i++) {
-      const x = cx + (Math.random() - 0.5) * plateR * 1.2;
-      const y = cy + (Math.random() - 0.5) * plateR * 1.2;
+    // Extra thick grease stains
+    for (let i = 0; i < 10; i++) {
+      const x = cx + (Math.random() - 0.5) * plateR * 1.3;
+      const y = cy + (Math.random() - 0.5) * plateR * 1.3;
       ctx.beginPath();
-      ctx.ellipse(x, y, 25 + Math.random() * 35, 8 + Math.random() * 12, Math.random() * Math.PI, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(140, 120, 80, 0.2)";
-    ctx.fill();
-  }
+      ctx.ellipse(x, y, 20 + Math.random() * 40, 10 + Math.random() * 18, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(140, 110, 60, 0.35)";
+      ctx.fill();
+    }
+
+    // Stuck-on food bits
+    for (let i = 0; i < 8; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * plateR * 0.5;
+      const x = cx + Math.cos(angle) * dist;
+      const y = cy + Math.sin(angle) * dist;
+      ctx.beginPath();
+      ctx.arc(x, y, 4 + Math.random() * 8, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(60, 40, 15, 0.7)";
+      ctx.fill();
+    }
 
     cleanedPixelsRef.current.clear();
   }, [active, key]);
@@ -151,39 +166,45 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       if (!active || cooldown > 0 || doneRef.current) return;
       e.preventDefault();
       isDraggingRef.current = true;
+      setIsScrubbing(true);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setIsInside(true);
     },
     [active, cooldown]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!isDraggingRef.current || !active || doneRef.current) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      setMousePos({ x, y });
 
       const cx = rect.width / 2;
       const cy = rect.height / 2;
       const plateR = Math.min(rect.width, rect.height) * 0.36;
-
       const dx = x - cx;
       const dy = y - cy;
-      if (Math.sqrt(dx * dx + dy * dy) > plateR + 5) return;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      setIsInside(dist <= plateR + 20);
 
-      const radius = 16;
+      if (!isDraggingRef.current || !active || doneRef.current) return;
+      if (dist > plateR + 5) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const radius = 12;
       ctx.globalCompositeOperation = "destination-out";
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      for (let px = -radius; px <= radius; px += 3) {
-        for (let py = -radius; py <= radius; py += 3) {
+      for (let px = -radius; px <= radius; px += 2) {
+        for (let py = -radius; py <= radius; py += 2) {
           if (px * px + py * py <= radius * radius) {
             cleanedPixelsRef.current.add(`${Math.floor(x + px)},${Math.floor(y + py)}`);
           }
@@ -191,23 +212,26 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       }
 
       const plateArea = Math.PI * plateR * plateR;
-      const cleanPct = Math.min(100, (cleanedPixelsRef.current.size / (plateArea * 0.012)) * 100);
+      const cleanPct = Math.min(100, (cleanedPixelsRef.current.size / (plateArea * 0.035)) * 100);
       setCleanPercent(cleanPct);
 
-      if (Math.random() < 0.35) {
+      if (Math.random() < 0.4) {
         const id = ++bubbleIdRef.current;
-        setBubbles((prev) => [...prev.slice(-20), { id, x, y, size: 5 + Math.random() * 14 }]);
-        setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 900);
+        const bx = x + (Math.random() - 0.5) * 20;
+        const by = y + (Math.random() - 0.5) * 20;
+        setBubbles((prev) => [...prev.slice(-25), { id, x: bx, y: by, size: 4 + Math.random() * 12 }]);
+        setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 800);
       }
 
-      if (cleanPct >= 80) {
+      if (cleanPct >= 90) {
         doneRef.current = true;
         isDraggingRef.current = false;
+        setIsScrubbing(false);
         setMoneyPopup(true);
         setTimeout(() => {
           setMoneyPopup(false);
           onWork();
-        }, 1400);
+        }, 1500);
       }
     },
     [active, onWork]
@@ -215,16 +239,16 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
 
   const handlePointerUp = useCallback(() => {
     isDraggingRef.current = false;
+    setIsScrubbing(false);
   }, []);
 
-  // Not active - show start button
   if (!active) {
     if (cooldown > 0) {
       return (
         <div className="flex flex-col items-center gap-1 py-1">
           <div className="relative w-12 h-12">
             <div className="absolute inset-0 rounded-full bg-neutral-700 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-3 border-transparent border-t-amber-500 animate-spin" style={{ borderWidth: 3 }} />
+              <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-amber-500 animate-spin" />
               <span className="text-[10px] font-bold text-neutral-400 font-mono">{cooldown}</span>
             </div>
           </div>
@@ -240,18 +264,59 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
     );
   }
 
-  // Active - show scrubbing canvas
   return (
     <div ref={containerRef} className="relative w-full rounded-xl overflow-hidden" style={{ height: "100%", minHeight: 300 }}>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
-        style={{ touchAction: "none" }}
+        className="absolute inset-0"
+        style={{ touchAction: "none", cursor: "none" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
       />
+
+      {/* Sponge cursor */}
+      {isInside && (
+        <div
+          className="absolute pointer-events-none z-30 transition-transform duration-75"
+          style={{
+            left: mousePos.x,
+            top: mousePos.y,
+            transform: `translate(-50%, -50%) scale(${isScrubbing ? 0.9 : 1})`,
+          }}
+        >
+          <div className="relative">
+            {/* Sponge body */}
+            <div className={`w-10 h-7 rounded-md shadow-lg border-2 transition-all duration-100 ${
+              isScrubbing
+                ? "bg-yellow-300 border-yellow-400 shadow-yellow-400/30"
+                : "bg-yellow-200 border-yellow-300"
+            }`}
+              style={{
+                background: isScrubbing
+                  ? "linear-gradient(135deg, #fde047, #facc15, #eab308)"
+                  : "linear-gradient(135deg, #fef08a, #fde047, #facc15)",
+              }}
+            >
+              {/* Sponge texture dots */}
+              <div className="absolute inset-0.5 rounded opacity-30">
+                <div className="absolute w-1 h-1 rounded-full bg-yellow-600/40 top-0.5 left-1" />
+                <div className="absolute w-1.5 h-1 rounded-full bg-yellow-600/30 top-1 right-1.5" />
+                <div className="absolute w-1 h-1 rounded-full bg-yellow-600/40 bottom-0.5 left-2" />
+                <div className="absolute w-1 h-1.5 rounded-full bg-yellow-600/30 bottom-1 right-1" />
+              </div>
+            </div>
+            {/* Soap drip when dragging */}
+            {isScrubbing && (
+              <>
+                <div className="absolute -bottom-1 left-1 w-1.5 h-1.5 rounded-full bg-white/50 animate-ping" />
+                <div className="absolute -bottom-0.5 right-2 w-1 h-1 rounded-full bg-white/40" />
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bubbles */}
       {bubbles.map((b) => (
@@ -271,7 +336,7 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
           <div className="h-full rounded-full transition-all duration-150"
             style={{
               width: `${cleanPercent}%`,
-              background: cleanPercent >= 80
+              background: cleanPercent >= 90
                 ? "linear-gradient(90deg, #22c55e, #4ade80)"
                 : "linear-gradient(90deg, #3b82f6, #06b6d4)",
             }}
@@ -281,9 +346,9 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       </div>
 
       {/* Hint */}
-      {cleanPercent < 5 && (
+      {cleanPercent < 3 && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-blue-300/80 pointer-events-none animate-pulse whitespace-nowrap">
-          👆 Drag over the plate to scrub it clean!
+          👆 Drag the sponge over the plate to clean it!
         </div>
       )}
 
