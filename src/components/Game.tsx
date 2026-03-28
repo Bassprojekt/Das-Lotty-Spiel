@@ -21,6 +21,7 @@ import {
 } from "@/lib/gameEngine";
 import { formatMoney, SYMBOLS } from "@/lib/gameData";
 import ScratchCard from "./ScratchCard";
+import DeskCard from "./DeskCard";
 import DayJob from "./DayJob";
 import NotificationToast, { JackpotOverlay } from "./Notifications";
 
@@ -31,12 +32,33 @@ const riskColors: Record<string, string> = {
 
 type CardSlot = "desk" | "center" | "robot" | "robot_done";
 
+interface DeskCardState {
+  cardId: string;
+  slot: CardSlot;
+  x: number;
+  y: number;
+  z: number;
+}
+
+let nextZ = 10;
+
+function randomDeskPos(index: number): { x: number; y: number } {
+  // Scatter cards across the desk area
+  const col = index % 5;
+  const row = Math.floor(index / 5);
+  return {
+    x: 20 + col * 125 + (Math.random() * 30 - 15),
+    y: 20 + row * 155 + (Math.random() * 20 - 10),
+  };
+}
+
 export default function Game() {
   const [state, setState] = useState<GameState>(createInitialState);
   const [showPrestige, setShowPrestige] = useState(false);
   const [selectedCat, setSelectedCat] = useState(0);
   const [washingMode, setWashingMode] = useState(false);
-  const [deskCards, setDeskCards] = useState<{ cardId: string; slot: CardSlot }[]>([]);
+  const [deskCards, setDeskCards] = useState<DeskCardState[]>([]);
+  const deskCounterRef = useRef(0);
   const [robotProcessing, setRobotProcessing] = useState(false);
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -44,7 +66,11 @@ export default function Game() {
     setState((p) => {
       const next = buyCard(p, id);
       const newCard = next.cards[next.cards.length - 1];
-      if (newCard) setDeskCards((d) => [...d, { cardId: newCard.id, slot: "desk" }]);
+      if (newCard) {
+        const idx = deskCounterRef.current++;
+        const pos = randomDeskPos(idx);
+        setDeskCards((d) => [...d, { cardId: newCard.id, slot: "desk", x: pos.x, y: pos.y, z: ++nextZ }]);
+      }
       return next;
     });
   }, []);
@@ -57,7 +83,9 @@ export default function Game() {
         cur = buyCard(cur, id);
         if (cur.cards.length > prev) {
           const nc = cur.cards[cur.cards.length - 1];
-          setDeskCards((d) => [...d, { cardId: nc.id, slot: "desk" }]);
+          const idx = deskCounterRef.current++;
+          const pos = randomDeskPos(idx);
+          setDeskCards((d) => [...d, { cardId: nc.id, slot: "desk", x: pos.x, y: pos.y, z: ++nextZ }]);
         }
       }
       return cur;
@@ -98,6 +126,14 @@ export default function Game() {
 
   const fanAllToRobot = useCallback(() => {
     setDeskCards((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c)));
+  }, []);
+
+  const handleCardDrag = useCallback((cardId: string, x: number, y: number) => {
+    setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, x, y } : c)));
+  }, []);
+
+  const handleBringFront = useCallback((cardId: string) => {
+    setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, z: ++nextZ } : c)));
   }, []);
 
   // Robot tick
@@ -254,10 +290,16 @@ export default function Game() {
               )}
             </div>
           ) : (
-            <div className="flex-1 flex flex-col">
-              <div className="text-[10px] text-neutral-500 mb-1">Desk ({deskOnly.length} cards)</div>
+            <div className="flex-1 relative overflow-hidden rounded-xl border border-amber-900/30"
+              style={{ background: "linear-gradient(135deg, #2d1f12 0%, #3d2b1f 50%, #2a1f15 100%)" }}>
+              {/* Desk surface texture */}
+              <div className="absolute inset-0 opacity-5"
+                style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(139,90,43,0.3) 40px, rgba(139,90,43,0.3) 41px)" }} />
+              <div className="absolute inset-0 opacity-3"
+                style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(139,90,43,0.3) 40px, rgba(139,90,43,0.3) 41px)" }} />
+
               {deskOnly.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     {state.balance < 10 ? (
                       <><div className="text-5xl mb-3 animate-float">🍽️</div><div className="text-lg font-bold text-amber-300 font-mono">Wash dishes!</div></>
@@ -267,25 +309,27 @@ export default function Game() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 grid gap-2 auto-rows-min content-start" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
-                  {deskOnly.map((dc) => {
-                    const card = state.cards.find((c) => c.id === dc.cardId);
-                    if (!card) return null;
-                    const ct = state.cardTypes.find((t) => t.id === card.cardTypeId)!;
-                    return (
-                      <div key={dc.cardId} onClick={() => openCard(dc.cardId)}
-                        className="relative cursor-pointer rounded-lg border-2 border-amber-800/50 hover:border-amber-500 hover:scale-105 transition-all p-2 flex flex-col items-center justify-center aspect-square"
-                        style={{ background: `linear-gradient(135deg, ${ct.colorFrom}30, ${ct.colorTo}30)` }}>
-                        <div className="text-2xl">{ct.icon}</div>
-                        <div className="text-[8px] text-amber-300 font-bold mt-0.5">{ct.name}</div>
-                        {!card.revealed && (
-                          <button onClick={(e) => { e.stopPropagation(); sendToRobot(dc.cardId); }}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-purple-600 hover:bg-purple-500 rounded-full text-[9px] flex items-center justify-center shadow-lg">🤖</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                deskOnly.map((dc) => {
+                  const card = state.cards.find((c) => c.id === dc.cardId);
+                  if (!card) return null;
+                  const ct = state.cardTypes.find((t) => t.id === card.cardTypeId)!;
+                  return (
+                    <DeskCard
+                      key={dc.cardId}
+                      card={card}
+                      cardType={ct}
+                      x={dc.x}
+                      y={dc.y}
+                      zIndex={dc.z}
+                      onOpen={openCard}
+                      onTrash={trashCard}
+                      onSendRobot={sendToRobot}
+                      onDrag={handleCardDrag}
+                      onBringFront={handleBringFront}
+                      showRobot={state.autoScratcherUnlocked}
+                    />
+                  );
+                })
               )}
             </div>
           )}
