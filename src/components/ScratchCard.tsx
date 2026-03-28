@@ -33,6 +33,8 @@ export default function ScratchCard({
   const [isPeeking, setIsPeeking] = useState(false);
   const canvasInitRef = useRef(false);
   const cardIdRef = useRef<string | null>(null);
+  // Track how much each zone has been scratched (0-100)
+  const zoneProgressRef = useRef<number[]>([]);
 
   const cols = Math.ceil(Math.sqrt(cardType.zones));
   const rows = Math.ceil(cardType.zones / cols);
@@ -115,6 +117,8 @@ export default function ScratchCard({
         ctx.globalCompositeOperation = "source-over";
       }
     }
+    // Reset zone progress for new card
+    zoneProgressRef.current = new Array(cardType.zones).fill(0);
   }, [card.id, card.revealed, card.zones, cardType, cols, rows]);
 
   const getZoneAtPoint = useCallback(
@@ -136,7 +140,7 @@ export default function ScratchCard({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const radius = 14 + scratchPower * 6;
+      const radius = 8 + scratchPower * 3;
 
       if (isPeeking) {
         ctx.globalCompositeOperation = "destination-out";
@@ -160,15 +164,21 @@ export default function ScratchCard({
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
 
+      // Accumulate scratch progress on zone
       const zoneIdx = getZoneAtPoint(x, y, rect.width, rect.height);
       if (zoneIdx >= 0 && zoneIdx < card.zones.length) {
+        // Each scratch adds progress based on area covered
+        const scratchAmount = (radius * radius * Math.PI) / ((rect.width / cols) * (rect.height / rows)) * 100;
+        zoneProgressRef.current[zoneIdx] = Math.min(100, (zoneProgressRef.current[zoneIdx] ?? 0) + scratchAmount);
+
         const zone = card.zones[zoneIdx];
-        if (!zone.symbols.every((s) => s.scratched)) {
+        // Only reveal zone when 40% of it has been scratched
+        if (zoneProgressRef.current[zoneIdx] >= 40 && !zone.symbols.every((s) => s.scratched)) {
           onScratch(card.id, zoneIdx);
         }
       }
     },
-    [card, scratchPower, isPeeking, getZoneAtPoint, onScratch, onPeek]
+    [card, scratchPower, isPeeking, getZoneAtPoint, onScratch, onPeek, cols, rows]
   );
 
   const handlePointerDown = useCallback(
