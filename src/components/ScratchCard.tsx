@@ -271,7 +271,7 @@ export default function ScratchCard({
                 style={{ fontSize: `${Math.min(32, 180 / cols)}px` }}
               >
                 {zone.symbols.map((s, si) => (
-                  <span key={si}>{SYMBOLS[s.symbolId]?.emoji}</span>
+                  <span key={si}>{SYMBOLS[s.symbolId]?.emoji ?? "?"}</span>
                 ))}
               </span>
             </div>

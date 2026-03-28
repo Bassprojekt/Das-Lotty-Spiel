@@ -39,12 +39,14 @@ function pickSymbol(
   // Weight win symbols - favor common ones, with luck bonus for rare
   const weights = allSymbols.map((id) => {
     const sym = SYMBOLS[id];
-    // Higher value = rarer (lower weight), but luck increases rare chance
+    if (!sym) return 0.5; // fallback weight for unknown symbols
     const base = 2 / (sym.value + 1);
     return base * (1 + luck * 0.03);
   });
 
   const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return allSymbols[0];
+
   let rand = Math.random() * total;
 
   for (let i = 0; i < weights.length; i++) {
@@ -523,7 +525,7 @@ export function revealCard(
     for (const sym of zone.symbols) {
       if (SYMBOLS[sym.symbolId]?.isTrap) {
         trapTriggered = true;
-        trapPenalty += Math.abs(SYMBOLS[sym.symbolId].value) * cardType.baseCost * 0.01;
+        trapPenalty += Math.abs(SYMBOLS[sym.symbolId]?.value ?? 5) * cardType.baseCost * 0.01;
       }
     }
   }
