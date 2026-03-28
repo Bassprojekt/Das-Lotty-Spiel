@@ -136,6 +136,38 @@ export default function Game() {
 
         {/* CENTER: DESK */}
         <div className="flex-1 flex flex-col gap-2 relative">
+          {/* Trash Can - ALWAYS VISIBLE on ALL views */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2" style={{ zIndex: 9999 }}>
+            <div className="relative group cursor-pointer">
+              <div className="absolute -inset-5 rounded-2xl bg-red-600/30 group-hover:bg-red-500/50 transition-all blur-lg" />
+              <div className="relative flex flex-col items-center">
+                <div className="w-24 h-28 rounded-b-xl overflow-hidden relative shadow-2xl group-hover:scale-110 transition-all"
+                  style={{
+                    background: "linear-gradient(180deg,#ef4444,#dc2626,#b91c1c)",
+                    border: "4px solid #fca5a5",
+                    borderBottom: "none",
+                    borderRadius: "10px 10px 18px 18px",
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.7), 0 0 25px rgba(239,68,68,0.4)",
+                  }}>
+                  <div className="absolute -top-5 -left-2.5 -right-2.5 h-6 rounded-t-lg"
+                    style={{ background: "linear-gradient(180deg,#f87171,#ef4444)", border: "3px solid #fecaca", borderBottom: "none" }} />
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 w-14 h-3.5 rounded-full"
+                    style={{ background: "#fecaca", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }} />
+                  <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-16 h-3.5 rounded-sm bg-black/50" />
+                  <div className="absolute top-7 left-0 right-0 flex justify-center gap-3">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <div key={i} className="w-1.5 h-12 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
+                    ))}
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center pt-4">
+                    <span className="text-5xl drop-shadow-lg">🗑️</span>
+                  </div>
+                </div>
+                <div className="text-sm text-red-300 mt-2 font-black tracking-[0.2em] group-hover:text-white transition-colors">TRASH</div>
+              </div>
+            </div>
+          </div>
+
           {washingMode ? (
             <div className="w-full h-full flex flex-col items-center">
               <div className="text-center mb-2"><div className="text-sm font-bold text-blue-300">🧽 Dishwashing</div></div>
@@ -162,22 +194,6 @@ export default function Game() {
 
               {/* Fan Gadget */}
               {state.upgrades.find((u) => u.id === "fan" && u.purchased) && <FanGadget onFanAll={fanAllToRobot} cardCount={deskOnly.length} />}
-
-              {/* Trash Can - ALWAYS VISIBLE */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2" style={{ zIndex: 999 }}>
-                <div className="relative group cursor-pointer">
-                  <div className="absolute -inset-4 rounded-2xl bg-red-600/20 group-hover:bg-red-500/40 transition-all blur-md" />
-                  <div className="relative flex flex-col items-center">
-                    <div className="w-20 h-[96px] rounded-b-xl overflow-hidden relative shadow-2xl group-hover:scale-110 transition-all" style={{ background: "linear-gradient(180deg,#ef4444,#dc2626,#b91c1c)", border: "3px solid #fca5a5", borderBottom: "none", borderRadius: "8px 8px 16px 16px", boxShadow: "0 8px 25px rgba(0,0,0,0.6),0 0 15px rgba(239,68,68,0.3)" }}>
-                      <div className="absolute -top-4 -left-2 -right-2 h-5 rounded-t-lg" style={{ background: "linear-gradient(180deg,#f87171,#ef4444)", border: "2px solid #fecaca", borderBottom: "none" }} />
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-3 rounded-full" style={{ background: "#fecaca" }} />
-                      <div className="absolute top-1 left-1/2 -translate-x-1/2 w-14 h-3 rounded-sm bg-black/50" />
-                      <div className="absolute inset-0 flex items-center justify-center pt-3"><span className="text-4xl drop-shadow-lg">🗑️</span></div>
-                    </div>
-                    <div className="text-xs text-red-300 mt-1.5 font-black tracking-widest group-hover:text-white transition-colors">TRASH</div>
-                  </div>
-                </div>
-              </div>
 
               {/* Empty hint */}
               {deskOnly.length === 0 && <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 1 }}><div className="text-center opacity-40">{state.balance < 10 ? <><div className="text-4xl mb-2">🍽️</div><div className="text-sm text-amber-300 font-mono">Wash dishes!</div></> : <><div className="text-4xl mb-2">🎫</div><div className="text-sm text-emerald-300 font-mono">Buy cards!</div></>}</div></div>}
