@@ -14,6 +14,7 @@ interface DeskCardProps {
   onTrash: (cardId: string) => void;
   onSendRobot: (cardId: string) => void;
   onDrag: (cardId: string, x: number, y: number) => void;
+  onDragEnd: (cardId: string, x: number, y: number) => void;
   onBringFront: (cardId: string) => void;
   showRobot: boolean;
 }
@@ -248,6 +249,7 @@ export default function DeskCard({
   onTrash,
   onSendRobot,
   onDrag,
+  onDragEnd,
   onBringFront,
   showRobot,
 }: DeskCardProps) {
@@ -273,20 +275,27 @@ export default function DeskCard({
 
   useEffect(() => {
     if (!isDragging) return;
+    let lastX = x;
+    let lastY = y;
     const handleMove = (e: PointerEvent) => {
       const parent = cardRef.current?.parentElement;
       if (!parent) return;
       const pr = parent.getBoundingClientRect();
-      onDrag(card.id, e.clientX - pr.left - dragOffset.current.x, e.clientY - pr.top - dragOffset.current.y);
+      lastX = e.clientX - pr.left - dragOffset.current.x;
+      lastY = e.clientY - pr.top - dragOffset.current.y;
+      onDrag(card.id, lastX, lastY);
     };
-    const handleUp = () => setIsDragging(false);
+    const handleUp = () => {
+      setIsDragging(false);
+      onDragEnd(card.id, lastX, lastY);
+    };
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
     return () => {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [isDragging, card.id, onDrag]);
+  }, [isDragging, card.id, onDrag, onDragEnd, x, y]);
 
   const w = 110;
   const h = 140;

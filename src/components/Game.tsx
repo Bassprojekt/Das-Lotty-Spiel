@@ -23,7 +23,9 @@ import { formatMoney, SYMBOLS } from "@/lib/gameData";
 import ScratchCard from "./ScratchCard";
 import DeskCard from "./DeskCard";
 import FanGadget from "./FanGadget";
+import { TrashCanVisual } from "./TrashCan";
 import DayJob from "./DayJob";
+import UpgradeShop from "./UpgradeShop";
 import NotificationToast, { JackpotOverlay } from "./Notifications";
 
 const riskColors: Record<string, string> = {
@@ -56,6 +58,7 @@ function randomDeskPos(index: number): { x: number; y: number } {
 export default function Game() {
   const [state, setState] = useState<GameState>(createInitialState);
   const [showPrestige, setShowPrestige] = useState(false);
+  const [showUpgrades, setShowUpgrades] = useState(false);
   const [selectedCat, setSelectedCat] = useState(0);
   const [washingMode, setWashingMode] = useState(false);
   const [deskCards, setDeskCards] = useState<DeskCardState[]>([]);
@@ -131,6 +134,32 @@ export default function Game() {
 
   const handleCardDrag = useCallback((cardId: string, x: number, y: number) => {
     setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, x, y } : c)));
+  }, []);
+
+  const handleCardDragEnd = useCallback((cardId: string, x: number, y: number) => {
+    // Trash can is at bottom center - check if card was dropped near it
+    // Desk area is approximately 600px wide, trash can is at center bottom
+    // Card center position:
+    const cardCenterX = x + 55; // half of card width (110)
+    const cardCenterY = y + 70; // half of card height (140)
+
+    // Trash can approximate position (bottom center of desk)
+    // The desk element can vary in size, but we estimate trash can at ~50% x, ~90% y
+    const deskEl = document.querySelector('[data-desk="true"]');
+    let trashX = 300; // fallback center
+    let trashY = 500; // fallback bottom
+    if (deskEl) {
+      const rect = deskEl.getBoundingClientRect();
+      trashX = rect.width / 2;
+      trashY = rect.height - 40;
+    }
+
+    const dist = Math.sqrt((cardCenterX - trashX) ** 2 + (cardCenterY - trashY) ** 2);
+    if (dist < 80) {
+      // Card dropped on trash can!
+      setDeskCards((d) => d.filter((c) => c.cardId !== cardId));
+      setState((p) => discardCard(p, cardId));
+    }
   }, []);
 
   const handleBringFront = useCallback((cardId: string) => {
@@ -291,7 +320,7 @@ export default function Game() {
               )}
             </div>
           ) : (
-            <div className="flex-1 relative overflow-hidden rounded-xl border border-amber-900/30"
+            <div data-desk="true" className="flex-1 relative overflow-hidden rounded-xl border border-amber-900/30"
               style={{ background: "linear-gradient(135deg, #2d1f12 0%, #3d2b1f 50%, #2a1f15 100%)" }}>
               {/* Desk surface texture */}
               <div className="absolute inset-0 opacity-5"
@@ -331,17 +360,41 @@ export default function Game() {
                       onTrash={trashCard}
                       onSendRobot={sendToRobot}
                       onDrag={handleCardDrag}
+                      onDragEnd={handleCardDragEnd}
                       onBringFront={handleBringFront}
                       showRobot={state.autoScratcherUnlocked}
                     />
                   );
                 })
               )}
+
+              {/* Trash Can - bottom center of desk */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+                <div className="relative">
+                  {/* Can body */}
+                  <div className="w-14 h-16 rounded-b-lg overflow-hidden relative"
+                    style={{ background: "linear-gradient(180deg, #57534e, #44403c)", border: "2px solid #78716c", borderBottom: "none", borderRadius: "4px 4px 8px 8px" }}>
+                    {/* Lid */}
+                    <div className="absolute -top-2 left-0.5 right-0.5 h-3 rounded-t-md"
+                      style={{ background: "#78716c", border: "1px solid #a8a29e" }} />
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-1.5 rounded-full"
+                      style={{ background: "#a8a29e" }} />
+                    {/* Stripes */}
+                    <div className="absolute top-4 left-0 right-0 flex justify-center gap-1.5">
+                      {[0, 1, 2].map((i) => <div key={i} className="w-1 h-8 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />)}
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg">🗑️</span>
+                    </div>
+                  </div>
+                  <div className="text-[8px] text-neutral-500 mt-0.5 font-bold text-center">DROP HERE</div>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* RIGHT: STATS + UPGRADES */}
+        {/* RIGHT: STATS + BUTTONS */}
         <div className="w-52 flex-shrink-0 flex flex-col gap-2">
           <div className="bg-neutral-900/60 border border-neutral-700/40 rounded-lg p-2">
             <div className="text-[10px] font-bold text-neutral-400 mb-1 uppercase tracking-wider">Stats</div>
@@ -350,33 +403,33 @@ export default function Game() {
               <div><span className="text-neutral-500">Wins:</span> <span className="text-emerald-400 font-bold">{state.totalWins}</span></div>
               <div><span className="text-neutral-500">Earned:</span> <span className="text-emerald-400 font-bold">{formatMoney(state.totalEarned)}</span></div>
               <div><span className="text-neutral-500">Best:</span> <span className="text-yellow-400 font-bold">{formatMoney(state.biggestWin)}</span></div>
+              <div><span className="text-neutral-500">Luck:</span> <span className="text-green-400 font-bold">+{state.luck}%</span></div>
+              <div><span className="text-neutral-500">Mult:</span> <span className="text-yellow-400 font-bold">{state.rewardMultiplier}x</span></div>
             </div>
           </div>
-          <div className="flex-1 bg-neutral-900/60 border border-neutral-700/40 rounded-lg p-2 overflow-y-auto">
-            <div className="text-[10px] font-bold text-neutral-400 mb-1.5 uppercase tracking-wider">Upgrades</div>
-            {["luck", "power", "area", "multi", "auto", "qol"].map((cat) => {
-              const info = categoryInfo[cat];
-              const ups = state.upgrades.filter((u) => u.category === cat);
-              if (ups.length === 0) return null;
-              return <div key={cat} className="mb-2">
-                <div className="text-[9px] font-bold text-neutral-500 mb-0.5">{info.icon} {cat.toUpperCase()}</div>
-                {ups.map((u) => {
-                  const canAfford = state.balance >= u.cost;
-                  const hasPrereq = u.prerequisite ? state.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
-                  return <div key={u.id} className={`flex items-center justify-between py-0.5 px-1 rounded text-[10px] mb-0.5 ${u.purchased ? "bg-emerald-900/20" : !hasPrereq ? "opacity-30" : ""}`}>
-                    <span className={`truncate flex-1 ${u.purchased ? "text-emerald-400" : "text-neutral-300"}`}>{u.icon} {u.name}</span>
-                    {u.purchased ? <span className="text-emerald-500 text-[9px]">✓</span>
-                      : hasPrereq ? <button onClick={() => handleBuyUpgrade(u.id)} disabled={!canAfford}
-                        className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${canAfford ? "bg-violet-700 text-white" : "bg-neutral-800 text-neutral-600"}`}>{formatMoney(u.cost)}</button>
-                      : <span className="text-neutral-700 text-[9px]">🔒</span>}
-                  </div>;
-                })}
-              </div>;
-            })}
-          </div>
-          <button onClick={() => setShowPrestige(true)} className="bg-purple-950/60 border border-purple-700/40 rounded-lg p-2 text-left hover:bg-purple-900/40 transition-all">
-            <div className="text-[10px] font-bold text-purple-400 uppercase">✨ Prestige</div>
-            <div className="text-[9px] text-purple-300">{state.totalPrestiges > 0 ? `${state.totalPrestiges}x · ${state.jackPoints} JP` : "Earn $1M"}</div>
+
+          {/* Upgrades button */}
+          <button onClick={() => setShowUpgrades(true)}
+            className="bg-violet-950/60 border border-violet-700/40 rounded-lg p-2 text-left hover:bg-violet-900/40 transition-all">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold text-violet-400 uppercase">⬆️ Upgrades</div>
+                <div className="text-[9px] text-violet-300">{state.upgrades.filter((u) => u.purchased).length}/{state.upgrades.length} purchased</div>
+              </div>
+              <span className="text-violet-400">→</span>
+            </div>
+          </button>
+
+          {/* Prestige button */}
+          <button onClick={() => setShowPrestige(true)}
+            className="bg-purple-950/60 border border-purple-700/40 rounded-lg p-2 text-left hover:bg-purple-900/40 transition-all">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold text-purple-400 uppercase">✨ Prestige</div>
+                <div className="text-[9px] text-purple-300">{state.totalPrestiges > 0 ? `${state.totalPrestiges}x · ${state.jackPoints} JP` : "Earn $1M"}</div>
+              </div>
+              <span className="text-purple-400">→</span>
+            </div>
           </button>
         </div>
 
@@ -421,6 +474,19 @@ export default function Game() {
           </div>
         )}
       </div>
+
+      {/* UPGRADES OVERLAY */}
+      {showUpgrades && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowUpgrades(false)}>
+          <div className="bg-neutral-900 border-2 border-violet-500/50 rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-violet-300">⬆️ Upgrades</h2>
+              <button onClick={() => setShowUpgrades(false)} className="text-neutral-500 hover:text-white text-xl">✕</button>
+            </div>
+            <UpgradeShop state={state} onBuy={handleBuyUpgrade} />
+          </div>
+        </div>
+      )}
 
       {/* PRESTIGE */}
       {showPrestige && (
