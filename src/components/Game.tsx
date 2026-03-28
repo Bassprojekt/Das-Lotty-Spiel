@@ -39,6 +39,7 @@ export default function Game() {
   const [showUpgradePanel, setShowUpgradePanel] = useState(false);
   const [showPrestigePanel, setShowPrestigePanel] = useState(false);
   const [selectedCatalogue, setSelectedCatalogue] = useState(0);
+  const [washingMode, setWashingMode] = useState(false);
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dayJobRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -83,6 +84,10 @@ export default function Game() {
   }, []);
   const handleDayJob = useCallback(() => {
     setState((p) => doDayJob(p));
+    setWashingMode(false);
+  }, []);
+  const handleStartWash = useCallback(() => {
+    setWashingMode(true);
   }, []);
 
   useEffect(() => {
@@ -260,13 +265,23 @@ export default function Game() {
           {/* Day Job / Sink */}
           <div className="bg-blue-950/40 border border-blue-800/30 rounded-lg p-2">
             <div className="text-[10px] font-bold text-blue-400 mb-1 uppercase tracking-wider">Sink</div>
-            <DayJob level={state.dayJobLevel} cooldown={state.dayJobCooldown} onWork={handleDayJob} />
+            <DayJob level={state.dayJobLevel} cooldown={state.dayJobCooldown} onWork={handleDayJob} onStart={handleStartWash} active={false} />
           </div>
         </div>
 
-        {/* ===== CENTER: ACTIVE CARD ===== */}
+        {/* ===== CENTER: ACTIVE CARD or WASHING ===== */}
         <div className="flex-1 flex flex-col items-center justify-start gap-3 pt-4">
-          {activeCard && activeCardType ? (
+          {washingMode ? (
+            <div className="w-full h-full flex flex-col items-center">
+              <div className="text-center mb-2">
+                <div className="text-sm font-bold text-blue-300">🧽 Dishwashing</div>
+                <div className="text-[10px] text-neutral-500">Scrub the plate clean to earn money!</div>
+              </div>
+              <div className="flex-1 w-full">
+                <DayJob level={state.dayJobLevel} cooldown={0} onWork={handleDayJob} active={true} />
+              </div>
+            </div>
+          ) : activeCard && activeCardType ? (
             <>
               <div className="text-center">
                 <div className="text-sm font-bold" style={{ color: activeCardType.colorFrom }}>
