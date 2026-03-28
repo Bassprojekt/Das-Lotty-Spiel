@@ -115,14 +115,14 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       ctx.fill();
     }
 
-    // Lots of dirt spots - harder to clean
-    const dirtSpots = 50 + Math.floor(Math.random() * 30);
+    // Lots of dirt - really filthy plate
+    const dirtSpots = 80 + Math.floor(Math.random() * 40);
     for (let i = 0; i < dirtSpots; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * plateR * 0.68;
+      const dist = Math.random() * plateR * 0.7;
       const x = cx + Math.cos(angle) * dist;
       const y = cy + Math.sin(angle) * dist;
-      const size = 8 + Math.random() * 25;
+      const size = 10 + Math.random() * 28;
 
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
@@ -137,24 +137,36 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
     }
 
     // Extra thick grease stains
-    for (let i = 0; i < 10; i++) {
-      const x = cx + (Math.random() - 0.5) * plateR * 1.3;
-      const y = cy + (Math.random() - 0.5) * plateR * 1.3;
+    for (let i = 0; i < 15; i++) {
+      const x = cx + (Math.random() - 0.5) * plateR * 1.4;
+      const y = cy + (Math.random() - 0.5) * plateR * 1.4;
       ctx.beginPath();
-      ctx.ellipse(x, y, 20 + Math.random() * 40, 10 + Math.random() * 18, Math.random() * Math.PI, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(140, 110, 60, 0.35)";
+      ctx.ellipse(x, y, 25 + Math.random() * 50, 12 + Math.random() * 22, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(140, 110, 60, 0.4)";
       ctx.fill();
     }
 
-    // Stuck-on food bits
-    for (let i = 0; i < 8; i++) {
+    // Stuck-on food bits - hard to remove
+    for (let i = 0; i < 15; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * plateR * 0.5;
+      const dist = Math.random() * plateR * 0.6;
       const x = cx + Math.cos(angle) * dist;
       const y = cy + Math.sin(angle) * dist;
       ctx.beginPath();
-      ctx.arc(x, y, 4 + Math.random() * 8, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(60, 40, 15, 0.7)";
+      ctx.arc(x, y, 5 + Math.random() * 12, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(60, 40, 15, 0.75)";
+      ctx.fill();
+    }
+
+    // Crusty dried stains (extra layer)
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * plateR * 0.45;
+      const x = cx + Math.cos(angle) * dist;
+      const y = cy + Math.sin(angle) * dist;
+      ctx.beginPath();
+      ctx.arc(x, y, 15 + Math.random() * 20, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(50, 35, 15, 0.5)";
       ctx.fill();
     }
 
@@ -197,7 +209,7 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const radius = 12;
+      const radius = 10;
       ctx.globalCompositeOperation = "destination-out";
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -212,7 +224,7 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       }
 
       const plateArea = Math.PI * plateR * plateR;
-      const cleanPct = Math.min(100, (cleanedPixelsRef.current.size / (plateArea * 0.035)) * 100);
+      const cleanPct = Math.min(100, (cleanedPixelsRef.current.size / (plateArea * 0.055)) * 100);
       setCleanPercent(cleanPct);
 
       if (Math.random() < 0.4) {

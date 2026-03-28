@@ -199,13 +199,67 @@ export default function Game() {
                 const canBuy = state.balance >= ct.baseCost;
                 const winEmojis = ct.winSymbols.slice(0, 3).map((id) => SYMBOLS[id]?.emoji ?? "?");
                 const trapEmojis = ct.trapSymbols.map((id) => SYMBOLS[id]?.emoji ?? "?");
+
+                // Locked card - show as hidden/mystery
+                if (!ct.unlocked && ct.unlockCost > 0) {
+                  return (
+                    <div key={ct.id}
+                      className="rounded-lg p-1.5 border border-dashed border-neutral-700/50 bg-neutral-900/30 relative overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded flex items-center justify-center text-sm bg-neutral-800 animate-pulse">
+                            ❓
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-bold text-neutral-500">???</div>
+                            <div className="text-[9px] text-neutral-600">Hidden card</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-[11px] font-bold font-mono ${canBuy ? "text-amber-400" : "text-neutral-600"}`}>
+                            {formatMoney(ct.unlockCost)}
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => handleUnlock(ct.id)} disabled={state.balance < ct.unlockCost}
+                        className={`w-full py-1 rounded text-[10px] font-bold mt-1 transition-all ${
+                          state.balance >= ct.unlockCost
+                            ? "bg-amber-700 text-white hover:bg-amber-600 animate-pulse"
+                            : "bg-neutral-800 text-neutral-600"
+                        }`}
+                      >🔓 Discover</button>
+                      {/* Mystery shimmer */}
+                      <div className="absolute inset-0 pointer-events-none animate-shimmer opacity-10"
+                        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)" }}
+                      />
+                    </div>
+                  );
+                }
+
+                // Prestige card - locked
+                if (ct.isPrestige && !ct.unlocked) {
+                  return (
+                    <div key={ct.id}
+                      className="rounded-lg p-1.5 border border-dashed border-purple-800/40 bg-purple-950/20"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-7 h-7 rounded flex items-center justify-center text-sm bg-purple-900/50">
+                          💀
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-bold text-purple-400/60">???</div>
+                          <div className="text-[9px] text-purple-500/40">Prestige required</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Unlocked card
                 return (
                   <div key={ct.id}
-                    className={`rounded-lg p-1.5 border transition-all ${
-                      ct.unlocked
-                        ? "bg-amber-900/30 border-amber-700/40"
-                        : "bg-neutral-900/40 border-neutral-800/30 opacity-50"
-                    }`}
+                    className="rounded-lg p-1.5 border transition-all bg-amber-900/30 border-amber-700/40"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5">
@@ -229,33 +283,23 @@ export default function Game() {
                         </div>
                       </div>
                     </div>
-                    {ct.unlocked && !ct.isPrestige ? (
-                      <div className="flex gap-1">
-                        <button onClick={() => handleBuy(ct.id)} disabled={!canBuy}
-                          className={`flex-1 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            canBuy ? "bg-emerald-700 text-white hover:bg-emerald-600 active:scale-95" : "bg-neutral-800 text-neutral-600"
-                          }`}
-                        >Buy</button>
-                        <button onClick={() => handleBuyBatch(ct.id, 5)} disabled={state.balance < ct.baseCost * 5}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            state.balance >= ct.baseCost * 5 ? "bg-blue-700 text-white hover:bg-blue-600" : "bg-neutral-800 text-neutral-600"
-                          }`}
-                        >x5</button>
-                        <button onClick={() => handleBuyBatch(ct.id, 10)} disabled={state.balance < ct.baseCost * 10}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            state.balance >= ct.baseCost * 10 ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-neutral-800 text-neutral-600"
-                          }`}
-                        >x10</button>
-                      </div>
-                    ) : !ct.unlocked && ct.unlockCost > 0 ? (
-                      <button onClick={() => handleUnlock(ct.id)} disabled={state.balance < ct.unlockCost}
-                        className={`w-full py-1 rounded text-[10px] font-bold ${
-                          state.balance >= ct.unlockCost ? "bg-amber-700 text-white" : "bg-neutral-800 text-neutral-600"
+                    <div className="flex gap-1">
+                      <button onClick={() => handleBuy(ct.id)} disabled={!canBuy}
+                        className={`flex-1 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          canBuy ? "bg-emerald-700 text-white hover:bg-emerald-600 active:scale-95" : "bg-neutral-800 text-neutral-600"
                         }`}
-                      >🔓 {formatMoney(ct.unlockCost)}</button>
-                    ) : ct.isPrestige ? (
-                      <div className="text-center text-[9px] text-purple-400 py-0.5">💀 Prestige Card</div>
-                    ) : null}
+                      >Buy</button>
+                      <button onClick={() => handleBuyBatch(ct.id, 5)} disabled={state.balance < ct.baseCost * 5}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          state.balance >= ct.baseCost * 5 ? "bg-blue-700 text-white hover:bg-blue-600" : "bg-neutral-800 text-neutral-600"
+                        }`}
+                      >x5</button>
+                      <button onClick={() => handleBuyBatch(ct.id, 10)} disabled={state.balance < ct.baseCost * 10}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          state.balance >= ct.baseCost * 10 ? "bg-purple-700 text-white hover:bg-purple-600" : "bg-neutral-800 text-neutral-600"
+                        }`}
+                      >x10</button>
+                    </div>
                   </div>
                 );
               })}
