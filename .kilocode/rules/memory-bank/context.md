@@ -1,87 +1,54 @@
-# Active Context: Next.js Starter Template
+# Active Context: Lucky Scratch - Scratch Card Game
 
 ## Current State
 
-**Template Status**: ✅ Ready for development
+**Status**: ✅ Game fully implemented and deployed
 
-The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. It's ready for AI-assisted expansion to build any type of application.
+Lucky Scratch is a web-based scratch card incremental game inspired by Scritchy Scratchy on Steam. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS 4.
 
 ## Recently Completed
 
-- [x] Base Next.js 16 setup with App Router
-- [x] TypeScript configuration with strict mode
-- [x] Tailwind CSS 4 integration
-- [x] ESLint configuration
-- [x] Memory bank documentation
-- [x] Recipe system for common features
+- [x] Canvas-based scratch card mechanic with drag-to-reveal
+- [x] 5 card tiers: Penny ($10), Silver ($50), Gold ($200), Diamond ($1,000), Royal Flush ($5,000)
+- [x] 8 symbols with multipliers (🍒1x through 👑50x)
+- [x] Card shop with Buy 1/5/10 options and unlock progression
+- [x] 6 upgrades: Lucky Charm, Payout Multiplier, Scratch Bot, Scratch Speed, Bulk Buyer, Jackpot Magnet
+- [x] Prestige system with Jack Points and 6 permanent upgrades
+- [x] Jackpot overlay animation for big wins
+- [x] Toast notifications for game events
+- [x] Stats panel (earnings, win rate, biggest win, cards played)
+- [x] Responsive dark-themed UI with Tailwind CSS
+- [x] TypeScript strict mode, ESLint passing
 
 ## Current Structure
 
-| File/Directory | Purpose | Status |
-|----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
-| `src/app/layout.tsx` | Root layout | ✅ Ready |
-| `src/app/globals.css` | Global styles | ✅ Ready |
-| `.kilocode/` | AI context & recipes | ✅ Ready |
+| File/Directory | Purpose |
+|----------------|---------|
+| `src/app/page.tsx` | Entry point, renders Game component |
+| `src/app/layout.tsx` | Root layout with metadata |
+| `src/app/globals.css` | Custom animations and scrollbar styles |
+| `src/components/Game.tsx` | Main game component with tabs and state |
+| `src/components/ScratchCard.tsx` | Canvas-based scratch card component |
+| `src/components/Shop.tsx` | Card purchase shop |
+| `src/components/UpgradeShop.tsx` | Upgrade purchase panel |
+| `src/components/PrestigePanel.tsx` | Prestige system UI |
+| `src/components/StatsPanel.tsx` | Game statistics display |
+| `src/components/Notifications.tsx` | Toast notifications + jackpot overlay |
+| `src/lib/types.ts` | TypeScript type definitions |
+| `src/lib/gameData.ts` | Game configuration (cards, upgrades, symbols) |
+| `src/lib/gameEngine.ts` | Core game logic and state management |
 
-## Current Focus
+## Game Mechanics
 
-The template is ready. Next steps depend on user requirements:
-
-1. What type of application to build
-2. What features are needed
-3. Design/branding preferences
-
-## Quick Start Guide
-
-### To add a new page:
-
-Create a file at `src/app/[route]/page.tsx`:
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
-
-### To add components:
-
-Create `src/components/` directory and add components:
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### To add a database:
-
-Follow `.kilocode/recipes/add-database.md`
-
-### To add API routes:
-
-Create `src/app/api/[route]/route.ts`:
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-## Available Recipes
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Pending Improvements
-
-- [ ] Add more recipes (auth, email, etc.)
-- [ ] Add example components
-- [ ] Add testing setup recipe
+- **Scratching**: Canvas overlay with destination-out compositing reveals symbols underneath
+- **Match system**: 3+ matching symbols on a card = win
+- **Jackpot**: All cells reveal the same symbol = jackpot with multiplied payout
+- **Auto-scratch**: Scratch Bot upgrade enables automated card scratching
+- **Prestige**: Reset progress at $10K earned for Jack Points → permanent upgrades
 
 ## Session History
 
 | Date | Changes |
 |------|---------|
-| Initial | Template created with base setup |
+| Initial | Template created with base Next.js 16 setup |
+| Latest | Full Lucky Scratch game implementation |
