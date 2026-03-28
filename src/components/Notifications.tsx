@@ -17,20 +17,22 @@ export default function NotificationToast({
 
   useEffect(() => {
     requestAnimationFrame(() => setIsVisible(true));
-
     const timer = setTimeout(() => {
       setIsLeaving(true);
       setTimeout(() => onDismiss(notification.id), 300);
-    }, 3000);
-
+    }, 2500);
     return () => clearTimeout(timer);
   }, [notification.id, onDismiss]);
 
   const bgColor =
-    notification.type === "win"
-      ? "bg-emerald-500/90 border-emerald-400"
+    notification.type === "win" || notification.type === "jackpot"
+      ? notification.type === "jackpot"
+        ? "bg-yellow-500/90 border-yellow-400"
+        : "bg-emerald-500/90 border-emerald-400"
       : notification.type === "loss"
       ? "bg-neutral-700/90 border-neutral-600"
+      : notification.type === "trap"
+      ? "bg-red-600/90 border-red-400"
       : notification.type === "upgrade"
       ? "bg-violet-500/90 border-violet-400"
       : notification.type === "prestige"
@@ -42,8 +44,6 @@ export default function NotificationToast({
       className={`${bgColor} backdrop-blur-sm border rounded-xl px-4 py-2 shadow-2xl transition-all duration-300 transform ${
         isVisible && !isLeaving
           ? "translate-x-0 opacity-100"
-          : isLeaving
-          ? "translate-x-full opacity-0"
           : "translate-x-full opacity-0"
       }`}
     >
@@ -51,9 +51,14 @@ export default function NotificationToast({
         <span className="text-sm font-semibold text-white">
           {notification.message}
         </span>
-        {notification.amount && notification.amount > 0 && (
-          <span className="text-sm font-bold text-white/90">
-            +${notification.amount.toLocaleString()}
+        {notification.amount !== undefined && notification.amount !== 0 && (
+          <span
+            className={`text-sm font-bold ${
+              notification.amount > 0 ? "text-white/90" : "text-red-200"
+            }`}
+          >
+            {notification.amount > 0 ? "+" : ""}
+            ${Math.abs(notification.amount).toLocaleString()}
           </span>
         )}
       </div>
@@ -84,14 +89,14 @@ export function JackpotOverlay({ amount, onDismiss }: JackpotOverlayProps) {
         visible ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
       <div
         className={`relative z-10 text-center transition-all duration-700 transform ${
           visible ? "scale-100 rotate-0" : "scale-0 rotate-180"
         }`}
       >
         <div className="text-6xl mb-4 animate-bounce">🎰</div>
-        <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 mb-2 animate-pulse">
+        <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 mb-2">
           JACKPOT!
         </h1>
         <div className="text-3xl md:text-5xl font-black text-yellow-400 mb-6 drop-shadow-[0_0_30px_rgba(250,204,21,0.8)]">

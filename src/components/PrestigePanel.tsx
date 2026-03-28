@@ -14,13 +14,20 @@ export default function PrestigePanel({
   onPrestige,
   onBuyUpgrade,
 }: PrestigePanelProps) {
-  const canPrestige = state.totalEarned >= 10000;
-  const earnedJackPoints = Math.floor(Math.sqrt(state.totalEarned / 1000));
+  const canPrestige = state.totalEarned >= 1000000;
+  const earnedJP = Math.max(
+    1,
+    Math.floor(
+      Math.sqrt(state.totalEarned / 1e6) +
+        state.totalWins * 0.5 +
+        state.biggestWin / 1e8
+    )
+  );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <h2 className="text-lg font-bold text-white flex items-center gap-2">
-        <span>🌟</span> Prestige
+        <span>✨</span> Prestige
       </h2>
 
       <div className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-xl p-4 border border-purple-500/30">
@@ -51,8 +58,8 @@ export default function PrestigePanel({
             }`}
           >
             {canPrestige
-              ? `+${earnedJackPoints} Jack Points`
-              : `Need ${formatMoney(10000 - state.totalEarned)} more earned`}
+              ? `+${earnedJP} Jack Points`
+              : `Need ${formatMoney(1000000 - state.totalEarned)} more earned`}
           </div>
         </div>
 
@@ -61,18 +68,34 @@ export default function PrestigePanel({
           disabled={!canPrestige}
           className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all ${
             canPrestige
-              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 active:scale-95 shadow-lg shadow-purple-900/50 animate-pulse"
+              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 active:scale-95 shadow-lg shadow-purple-900/50"
               : "bg-neutral-700 text-neutral-500 cursor-not-allowed"
           }`}
         >
-          {canPrestige ? "✨ PRESTIGE ✨" : "🔒 Prestige Locked"}
+          {canPrestige ? "✨ PRESTIGE ✨" : "🔒 Earn more to prestige"}
         </button>
 
         <p className="text-xs text-neutral-500 mt-2 text-center">
-          Reset your progress for permanent upgrades!
+          Reset progress for permanent upgrades!
         </p>
       </div>
 
+      {/* Unlock info */}
+      {state.totalPrestiges < 3 && (
+        <div className="bg-neutral-800/50 rounded-xl p-3 border border-neutral-700/50">
+          <div className="text-xs text-neutral-400 mb-1">Next unlock:</div>
+          <div className="text-sm text-neutral-300">
+            {state.totalPrestiges === 0 &&
+              "🏖️ Beach Bundle (Catalogue 2) at 1 prestige"}
+            {state.totalPrestiges === 1 &&
+              "🎃 Spooky Selection (Catalogue 3) at 2 prestiges"}
+            {state.totalPrestiges === 2 &&
+              "👑 Deluxe Collection (Catalogue 4) at 3 prestiges"}
+          </div>
+        </div>
+      )}
+
+      {/* Permanent upgrades */}
       <div className="grid gap-2">
         {state.prestigeUpgrades.map((upgrade) => (
           <div

@@ -1,22 +1,28 @@
 import {
   GameState,
-  ScratchCardInstance,
-  ScratchCardTier,
-  Cell,
-  CardSymbol,
+  ScratchCard,
+  ScratchZone,
+  ZoneSymbol,
+  CardType,
   Notification,
 } from "./types";
-import { CARD_TIERS, UPGRADES, PRESTIGE_UPGRADES, getUpgradeCost } from "./gameData";
+import {
+  SYMBOLS,
+  CATALOGUES,
+  CARD_TYPES,
+  UPGRADES,
+  PRESTIGE_UPGRADES,
+  getCardLevelMultiplier,
+} from "./gameData";
 
-let notificationId = 0;
-
-function createNotification(
+let notifId = 0;
+function notif(
   message: string,
   type: Notification["type"],
   amount?: number
 ): Notification {
   return {
-    id: `notif-${++notificationId}`,
+    id: `n${++notifId}`,
     message,
     type,
     amount,
@@ -24,81 +30,494 @@ function createNotification(
   };
 }
 
-function pickSymbol(tier: ScratchCardTier, luckLevel: number): CardSymbol {
-  const symbols = tier.symbols;
-  const luckBonus = luckLevel * 0.1;
+function pickSymbol(
+  cardType: CardType,
+  luck: number
+): string {
+  const allSymbols = [...cardType.winSymbols];
+  const trapCount = cardType.trapSymbols.length;
 
-  const weights = symbols.map((_, i) => {
-    const baseWeight = 1 / (i + 1);
-    const adjusted = i >= symbols.length / 2 ? baseWeight * (1 + luckBonus) : baseWeight;
-    return adjusted;
+  const winWeights = allSymbols.map((id, i) => {
+    const sym = SYMBOLS[id];
+    const base = 1 / (sym.value + 1);
+    return base * (1 + luck * 0.05);
   });
 
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
-  let rand = Math.random() * totalWeight;
+  const trapWeights = cardType.trapSymbols.map(() => {
+    return Math.max(0.01, 0.3 * (1 - luck * 0.05));
+  });
 
-  for (let i = 0; i < symbols.length; i++) {
-    rand -= weights[i];
-    if (rand <= 0) return symbols[i];
+  const totalWin = winWeights.reduce((a, b) => a + b, 0);
+  const totalTrap = trapWeights.reduce((a, b) => a + b, 0);
+  const total = totalWin + totalTrap;
+
+  let rand = Math.random() * total;
+
+  for (let i = 0; i < winWeights.length; i++) {
+    rand -= winWeights[i];
+    if (rand <= 0) return allSymbols[i];
   }
 
-  return symbols[symbols.length - 1];
+  if (trapCount > 0) {
+    for (let i = 0; i < trapWeights.length; i++) {
+      rand -= trapWeights[i];
+      if (rand <= 0) return cardType.trapSymbols[i];
+    }
+    return cardType.trapSymbols[0];
+  }
+
+  return allSymbols[allSymbols.length - 1];
 }
 
-function generateCard(tier: ScratchCardTier, luckLevel: number): ScratchCardInstance {
-  const cells: Cell[] = [];
-  const totalCells = tier.gridCols * tier.gridRows;
+function generateCard(cardType: CardType, luck: number): ScratchCard {
+  const zones: ScratchZone[] = [];
+  let hasTrap = false;
 
-  for (let i = 0; i < totalCells; i++) {
-    cells.push({
-      symbol: pickSymbol(tier, luckLevel),
-      scratched: false,
-    });
+  for (let z = 0; z < cardType.zones; z++) {
+    const symbols: ZoneSymbol[] = [];
+    for (let s = 0; s < cardType.symbolsPerZone; s++) {
+      const symbolId = pickSymbol(cardType, luck);
+      if (SYMBOLS[symbolId]?.isTrap) hasTrap = true;
+      symbols.push({ symbolId, scratched: false, peeked: false });
+    }
+    zones.push({ symbols });
   }
 
   return {
-    id: `card-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    tierId: tier.id,
-    cells,
+    id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    cardTypeId: cardType.id,
+    level: 1,
+    zones,
     prize: 0,
     revealed: false,
+    discarded: false,
     scratchedPercent: 0,
+    hasTrap,
+    trapTriggered: false,
   };
 }
 
-function calculatePrize(
-  card: ScratchCardInstance,
-  tier: ScratchCardTier,
-  payoutLevel: number,
-  jackpotLevel: number,
-  hasDoubleJackpot: boolean
-): { prize: number; isJackpot: boolean } {
-  const symbolCounts = new Map<string, { count: number; symbol: CardSymbol }>();
+function getFullState(): GameState {
+  const upgrades = UPGRADES.map((u) => ({ ...u }));
+  const prestigeUpgrades = PRESTIGE_UPGRADES.map((u) => ({ ...u }));
+  const catalogues = CATALOGUES.map((c) => ({ ...c }));
+  const cardTypes = CARD_TYPES.map((c) => ({ ...c }));
 
-  for (const cell of card.cells) {
-    const key = cell.symbol.type;
-    const existing = symbolCounts.get(key);
-    if (existing) {
-      existing.count++;
-    } else {
-      symbolCounts.set(key, { count: 1, symbol: cell.symbol });
+  return {
+    balance: 0,
+    totalEarned: 0,
+    totalSpent: 0,
+    totalCardsPlayed: 0,
+    totalWins: 0,
+    totalTrapsTriggered: 0,
+    totalDiscarded: 0,
+    biggestWin: 0,
+    jackPoints: 0,
+    totalPrestiges: 0,
+    dayJobLevel: 1,
+    dayJobCooldown: 0,
+
+    catalogues,
+    cardTypes,
+    cards: [],
+    activeCardId: null,
+    selectedCardTypeId: null,
+
+    upgrades,
+    prestigeUpgrades,
+
+    autoScratcherUnlocked: false,
+    autoScratcherActive: false,
+    autoScratcherQueue: [],
+    autoScratcherQueueSize: 5,
+    autoScratcherSpeed: 1,
+    autoScratcherCardTypeId: null,
+
+    showJackpot: false,
+    jackpotAmount: 0,
+    jackpotEmoji: "🎰",
+    notifications: [],
+
+    luck: 0,
+    scratchPower: 0,
+    scratchArea: 0,
+    rewardMultiplier: 1,
+    jackpotChanceBonus: 0,
+  };
+}
+
+export function createInitialState(): GameState {
+  let state = getFullState();
+
+  const hasHeadStart = state.prestigeUpgrades.find(
+    (u) => u.id === "head_start" && u.purchased
+  );
+  if (hasHeadStart) state.balance = 500;
+
+  const hasLuckyLegacy = state.prestigeUpgrades.find(
+    (u) => u.id === "lucky_legacy" && u.purchased
+  );
+  if (hasLuckyLegacy) state.luck += 15;
+
+  const hasSpeedDemon = state.prestigeUpgrades.find(
+    (u) => u.id === "speed_demon" && u.purchased
+  );
+  if (hasSpeedDemon) {
+    state.upgrades = state.upgrades.map((u) =>
+      u.id === "power_1" || u.id === "power_2" ? { ...u, purchased: true } : u
+    );
+    state.scratchPower = 2;
+  }
+
+  const hasScratchMemory = state.prestigeUpgrades.find(
+    (u) => u.id === "scratch_memory" && u.purchased
+  );
+  if (hasScratchMemory) {
+    state.autoScratcherUnlocked = true;
+    state.upgrades = state.upgrades.map((u) =>
+      u.id === "auto_unlock" ? { ...u, purchased: true } : u
+    );
+  }
+
+  // Unlock catalogues based on prestige count
+  if (state.totalPrestiges >= 1) {
+    state.catalogues = state.catalogues.map((c) =>
+      c.id === "cat_2" ? { ...c, unlocked: true } : c
+    );
+  }
+  if (state.totalPrestiges >= 2) {
+    state.catalogues = state.catalogues.map((c) =>
+      c.id === "cat_3" ? { ...c, unlocked: true } : c
+    );
+  }
+  if (state.totalPrestiges >= 3) {
+    state.catalogues = state.catalogues.map((c) =>
+      c.id === "cat_4" ? { ...c, unlocked: true } : c
+    );
+  }
+
+  return state;
+}
+
+function recalcStats(state: GameState): GameState {
+  let luck = 0;
+  let scratchPower = 0;
+  let scratchArea = 0;
+  let rewardMultiplier = 1;
+  let jackpotChanceBonus = 0;
+  let autoScratcherUnlocked = false;
+  let autoScratcherQueueSize = 5;
+  let autoScratcherSpeed = 1;
+
+  for (const u of state.upgrades) {
+    if (!u.purchased) continue;
+    switch (u.id) {
+      case "luck_1": luck += 5; break;
+      case "luck_2": luck += 10; break;
+      case "luck_3": luck += 20; jackpotChanceBonus += 20; break;
+      case "luck_4": luck += 35; break;
+      case "power_1": scratchPower = 1; break;
+      case "power_2": scratchPower = 2; break;
+      case "power_3": scratchPower = 4; break;
+      case "power_4": scratchPower = 8; break;
+      case "area_1": scratchArea = 1; break;
+      case "area_2": scratchArea = 2; break;
+      case "multi_1": rewardMultiplier *= 2; break;
+      case "multi_2": rewardMultiplier *= 1.5; break;
+      case "multi_3": rewardMultiplier *= 3; jackpotChanceBonus += 30; break;
+      case "auto_unlock": autoScratcherUnlocked = true; break;
+      case "auto_queue_1": autoScratcherQueueSize += 5; break;
+      case "auto_queue_2": autoScratcherQueueSize += 20; break;
+      case "auto_speed": autoScratcherSpeed *= 2; break;
+    }
+  }
+
+  const hasGoldenHands = state.prestigeUpgrades.find(
+    (u) => u.id === "golden_hands" && u.purchased
+  );
+  if (hasGoldenHands) rewardMultiplier *= 1.25;
+
+  const hasJackpotMagnet = state.prestigeUpgrades.find(
+    (u) => u.id === "jackpot_magnet" && u.purchased
+  );
+  if (hasJackpotMagnet) jackpotChanceBonus += 100;
+
+  const hasLuckyLegacy = state.prestigeUpgrades.find(
+    (u) => u.id === "lucky_legacy" && u.purchased
+  );
+  if (hasLuckyLegacy) luck += 15;
+
+  return {
+    ...state,
+    luck,
+    scratchPower,
+    scratchArea,
+    rewardMultiplier,
+    jackpotChanceBonus,
+    autoScratcherUnlocked,
+    autoScratcherQueueSize,
+    autoScratcherSpeed,
+  };
+}
+
+export function doDayJob(state: GameState): GameState {
+  if (state.dayJobCooldown > 0) return state;
+  const earnings = 5 * state.dayJobLevel;
+  return {
+    ...state,
+    balance: state.balance + earnings,
+    totalEarned: state.totalEarned + earnings,
+    dayJobCooldown: 3,
+    notifications: [
+      ...state.notifications,
+      notif("Dishwashing done!", "info", earnings),
+    ],
+  };
+}
+
+export function tickDayJob(state: GameState): GameState {
+  if (state.dayJobCooldown <= 0) return state;
+  return { ...state, dayJobCooldown: state.dayJobCooldown - 1 };
+}
+
+export function buyCard(
+  state: GameState,
+  cardTypeId: string
+): GameState {
+  const cardType = state.cardTypes.find((c) => c.id === cardTypeId);
+  if (!cardType || !cardType.unlocked) return state;
+  if (cardType.isPrestige) return state;
+
+  if (state.balance < cardType.baseCost) return state;
+
+  const card = generateCard(cardType, state.luck);
+
+  return {
+    ...state,
+    balance: state.balance - cardType.baseCost,
+    totalSpent: state.totalSpent + cardType.baseCost,
+    cards: [...state.cards, card],
+    activeCardId: card.id,
+    selectedCardTypeId: cardTypeId,
+  };
+}
+
+export function buyCardBatch(
+  state: GameState,
+  cardTypeId: string,
+  count: number
+): GameState {
+  let cur = state;
+  for (let i = 0; i < count; i++) {
+    const next = buyCard(cur, cardTypeId);
+    if (next.cards.length === cur.cards.length) break;
+    cur = next;
+  }
+  return cur;
+}
+
+export function unlockCardType(
+  state: GameState,
+  cardTypeId: string
+): GameState {
+  const idx = state.cardTypes.findIndex((c) => c.id === cardTypeId);
+  if (idx === -1) return state;
+  const ct = state.cardTypes[idx];
+  if (ct.unlocked) return state;
+  if (ct.unlockCost > 0 && state.balance < ct.unlockCost) return state;
+
+  const newTypes = [...state.cardTypes];
+  newTypes[idx] = { ...ct, unlocked: true };
+
+  let newState = {
+    ...state,
+    cardTypes: newTypes,
+    balance: state.balance - ct.unlockCost,
+    totalSpent: state.totalSpent + ct.unlockCost,
+  };
+
+  if (ct.unlockCost > 0) {
+    newState.notifications = [
+      ...newState.notifications,
+      notif(`${ct.name} unlocked!`, "upgrade"),
+    ];
+  }
+
+  return newState;
+}
+
+export function scratchZone(
+  state: GameState,
+  cardId: string,
+  zoneIndex: number
+): GameState {
+  const cardIdx = state.cards.findIndex((c) => c.id === cardId);
+  if (cardIdx === -1) return state;
+  const card = state.cards[cardIdx];
+  if (card.revealed || card.discarded) return state;
+
+  const newZones = [...card.zones];
+  const zone = { ...newZones[zoneIndex] };
+  const newSymbols = zone.symbols.map((s) => ({
+    ...s,
+    scratched: true,
+    peeked: true,
+  }));
+  zone.symbols = newSymbols;
+  newZones[zoneIndex] = zone;
+
+  const totalZones = newZones.length;
+  const scratchedZones = newZones.filter((z) =>
+    z.symbols.every((s) => s.scratched)
+  ).length;
+
+  let trapTriggered = card.trapTriggered;
+  for (const sym of newSymbols) {
+    if (SYMBOLS[sym.symbolId]?.isTrap && sym.scratched) {
+      trapTriggered = true;
+    }
+  }
+
+  const newCard: ScratchCard = {
+    ...card,
+    zones: newZones,
+    scratchedPercent: scratchedZones / totalZones,
+    trapTriggered,
+  };
+
+  const newCards = [...state.cards];
+  newCards[cardIdx] = newCard;
+
+  let newState = { ...state, cards: newCards };
+
+  if (newCard.scratchedPercent >= 1) {
+    newState = revealCard(newState, cardId);
+  }
+
+  return newState;
+}
+
+export function peekZone(
+  state: GameState,
+  cardId: string,
+  zoneIndex: number
+): GameState {
+  const cardIdx = state.cards.findIndex((c) => c.id === cardId);
+  if (cardIdx === -1) return state;
+  const card = state.cards[cardIdx];
+  if (card.revealed || card.discarded) return state;
+
+  const newZones = [...card.zones];
+  const zone = { ...newZones[zoneIndex] };
+  zone.symbols = zone.symbols.map((s) => ({ ...s, peeked: true }));
+  newZones[zoneIndex] = zone;
+
+  const newCard: ScratchCard = { ...card, zones: newZones };
+  const newCards = [...state.cards];
+  newCards[cardIdx] = newCard;
+
+  return { ...state, cards: newCards };
+}
+
+export function discardCard(
+  state: GameState,
+  cardId: string
+): GameState {
+  const cardIdx = state.cards.findIndex((c) => c.id === cardId);
+  if (cardIdx === -1) return state;
+  const card = state.cards[cardIdx];
+  if (card.revealed || card.discarded) return state;
+
+  const cardType = state.cardTypes.find((c) => c.id === card.cardTypeId);
+
+  const newCards = [...state.cards];
+  newCards[cardIdx] = { ...card, discarded: true };
+
+  let refund = 0;
+  const hasRecycle = state.upgrades.find((u) => u.id === "recycle" && u.purchased);
+  const hasRecyclerPro = state.prestigeUpgrades.find(
+    (u) => u.id === "recycler_pro" && u.purchased
+  );
+  if (hasRecycle || hasRecyclerPro) {
+    refund = Math.floor((cardType?.baseCost ?? 0) * 0.1);
+  }
+
+  // Move to next unrevealed card
+  const nextCard = newCards.find(
+    (c) => !c.revealed && !c.discarded && c.id !== cardId
+  );
+
+  return {
+    ...state,
+    cards: newCards,
+    balance: state.balance + refund,
+    totalEarned: state.totalEarned + refund,
+    totalDiscarded: state.totalDiscarded + 1,
+    activeCardId: nextCard?.id ?? null,
+    notifications: [
+      ...state.notifications,
+      notif(
+        refund > 0 ? `Discarded (+$${refund} recycle)` : "Card discarded",
+        "info"
+      ),
+    ],
+  };
+}
+
+export function revealCard(
+  state: GameState,
+  cardId: string
+): GameState {
+  const cardIdx = state.cards.findIndex((c) => c.id === cardId);
+  if (cardIdx === -1) return state;
+  const card = state.cards[cardIdx];
+  if (card.revealed) return state;
+
+  const cardType = state.cardTypes.find((c) => c.id === card.cardTypeId);
+  if (!cardType) return state;
+
+  // Scratch all remaining zones
+  const allScratchedZones = card.zones.map((z) => ({
+    symbols: z.symbols.map((s) => ({ ...s, scratched: true, peeked: true })),
+  }));
+
+  // Check for trap
+  let trapTriggered = false;
+  let trapPenalty = 0;
+  for (const zone of allScratchedZones) {
+    for (const sym of zone.symbols) {
+      if (SYMBOLS[sym.symbolId]?.isTrap) {
+        trapTriggered = true;
+        trapPenalty += Math.abs(SYMBOLS[sym.symbolId].value) * cardType.baseCost * 0.01;
+      }
+    }
+  }
+
+  // Calculate prize from matching symbols
+  const symbolCounts = new Map<string, number>();
+  for (const zone of allScratchedZones) {
+    for (const sym of zone.symbols) {
+      if (!SYMBOLS[sym.symbolId]?.isTrap) {
+        symbolCounts.set(sym.symbolId, (symbolCounts.get(sym.symbolId) ?? 0) + 1);
+      }
     }
   }
 
   let bestPrize = 0;
   let isJackpot = false;
+  const levelMult = getCardLevelMultiplier(card.level);
 
-  for (const [, { count, symbol }] of symbolCounts) {
-    if (count >= tier.matchRequired) {
-      const matchBonus = count - tier.matchRequired + 1;
-      let prize = tier.cost * symbol.multiplier * matchBonus;
-      prize *= 1 + payoutLevel * 0.15;
+  for (const [symId, count] of symbolCounts) {
+    if (count >= cardType.matchRequired) {
+      const sym = SYMBOLS[symId];
+      const matchBonus = count - cardType.matchRequired + 1;
+      let prize = cardType.basePrize * (sym.value / 10) * matchBonus * levelMult;
+      prize *= state.rewardMultiplier;
 
-      if (count >= tier.gridCols * tier.gridRows) {
-        let jackpotPrize = tier.cost * tier.jackpotMultiplier * symbol.multiplier;
-        if (hasDoubleJackpot) jackpotPrize *= 2;
-        jackpotPrize *= 1 + payoutLevel * 0.15;
-        prize = Math.max(prize, jackpotPrize);
+      if (count >= cardType.zones * cardType.symbolsPerZone) {
+        let jp = cardType.basePrize * cardType.jackpotMultiplier * (sym.value / 10) * levelMult;
+        jp *= state.rewardMultiplier;
+        prize = Math.max(prize, jp);
         isJackpot = true;
       }
 
@@ -106,266 +525,106 @@ function calculatePrize(
     }
   }
 
-  return { prize: Math.floor(bestPrize), isJackpot };
-}
+  let finalPrize = Math.floor(bestPrize);
 
-export function createInitialState(): GameState {
-  const upgrades = UPGRADES.map((u) => ({ ...u }));
-  const prestigeUpgrades = PRESTIGE_UPGRADES.map((u) => ({ ...u }));
-  const cardTiers = CARD_TIERS.map((t) => ({ ...t }));
-
-  return {
-    balance: 50,
-    totalEarned: 0,
-    totalSpent: 0,
-    totalCardsPlayed: 0,
-    totalWins: 0,
-    biggestWin: 0,
-    jackPoints: 0,
-    totalPrestiges: 0,
-    cards: [],
-    activeCardId: null,
-    upgrades,
-    prestigeUpgrades,
-    cardTiers,
-    autoScratchActive: false,
-    showJackpot: false,
-    jackpotAmount: 0,
-    notifications: [],
-  };
-}
-
-export function buyCard(state: GameState, tierId: string): GameState {
-  const tier = state.cardTiers.find((t) => t.id === tierId);
-  if (!tier || !tier.unlocked) return state;
-
-  const bulkDiscount = state.upgrades.find((u) => u.id === "bulk_discount");
-  const discountLevel = bulkDiscount?.currentLevel ?? 0;
-  const prestigeDiscount = state.prestigeUpgrades.find(
-    (u) => u.id === "discount" && u.purchased
-  );
-  let cost = tier.cost * (1 - discountLevel * 0.1);
-  if (prestigeDiscount) cost *= 0.85;
-  cost = Math.floor(cost);
-
-  if (state.balance < cost) return state;
-
-  const luckLevel = state.upgrades.find((u) => u.id === "luck_boost")?.currentLevel ?? 0;
-  const card = generateCard(tier, luckLevel);
-
-  return {
-    ...state,
-    balance: state.balance - cost,
-    totalSpent: state.totalSpent + cost,
-    cards: [...state.cards, card],
-    activeCardId: card.id,
-  };
-}
-
-export function buyCardBatch(state: GameState, tierId: string, count: number): GameState {
-  let current = state;
-  for (let i = 0; i < count; i++) {
-    const next = buyCard(current, tierId);
-    if (next.cards.length === current.cards.length) break;
-    current = next;
+  // If trap triggered and no win, apply penalty
+  if (trapTriggered && finalPrize === 0) {
+    finalPrize = -Math.floor(trapPenalty);
   }
-  return current;
-}
 
-export function scratchCell(
-  state: GameState,
-  cardId: string,
-  cellIndex: number
-): GameState {
-  const cardIndex = state.cards.findIndex((c) => c.id === cardId);
-  if (cardIndex === -1) return state;
-
-  const card = state.cards[cardIndex];
-  if (card.revealed) return state;
-
-  const newCells = [...card.cells];
-  if (newCells[cellIndex].scratched) return state;
-
-  newCells[cellIndex] = { ...newCells[cellIndex], scratched: true };
-
-  const scratchedCount = newCells.filter((c) => c.scratched).length;
-  const scratchedPercent = scratchedCount / newCells.length;
-
-  let newCard: ScratchCardInstance = {
+  const newCard: ScratchCard = {
     ...card,
-    cells: newCells,
-    scratchedPercent,
-  };
-
-  const newCards = [...state.cards];
-  newCards[cardIndex] = newCard;
-
-  let newState = { ...state, cards: newCards };
-
-  if (scratchedPercent >= 1) {
-    newState = revealCard(newState, cardId);
-  }
-
-  return newState;
-}
-
-export function revealCard(state: GameState, cardId: string): GameState {
-  const cardIndex = state.cards.findIndex((c) => c.id === cardId);
-  if (cardIndex === -1) return state;
-
-  const card = state.cards[cardIndex];
-  if (card.revealed) return state;
-
-  const tier = state.cardTiers.find((t) => t.id === card.tierId);
-  if (!tier) return state;
-
-  const payoutLevel = state.upgrades.find((u) => u.id === "payout_boost")?.currentLevel ?? 0;
-  const jackpotLevel = state.upgrades.find((u) => u.id === "jackpot_chance")?.currentLevel ?? 0;
-  const hasDoubleJackpot = state.prestigeUpgrades.find(
-    (u) => u.id === "double_jackpot" && u.purchased
-  ) !== undefined;
-  const earnMultiplier = state.prestigeUpgrades.find(
-    (u) => u.id === "earn_multiplier" && u.purchased
-  ) !== undefined;
-
-  const { prize, isJackpot } = calculatePrize(card, tier, payoutLevel, jackpotLevel, hasDoubleJackpot);
-
-  let finalPrize = prize;
-  if (earnMultiplier && finalPrize > 0) {
-    finalPrize = Math.floor(finalPrize * 1.25);
-  }
-
-  const allScratched = card.cells.every((c) => c.scratched);
-  const newCells = allScratched
-    ? card.cells
-    : card.cells.map((c) => ({ ...c, scratched: true }));
-
-  const newCard: ScratchCardInstance = {
-    ...card,
-    cells: newCells,
+    zones: allScratchedZones,
     prize: finalPrize,
     revealed: true,
     scratchedPercent: 1,
+    trapTriggered,
   };
 
   const newCards = [...state.cards];
-  newCards[cardIndex] = newCard;
+  newCards[cardIdx] = newCard;
 
-  const notifications: Notification[] = [...state.notifications];
+  // Next unrevealed card
+  const nextCard = newCards.find(
+    (c) => !c.revealed && !c.discarded && c.id !== cardId
+  );
 
-  if (finalPrize > 0) {
+  const notifications = [...state.notifications];
+
+  if (isJackpot && finalPrize > 0) {
+    notifications.push(notif("🎰 JACKPOT!", "jackpot", finalPrize));
+  } else if (finalPrize > 0) {
+    notifications.push(notif("Winner!", "win", finalPrize));
+  } else if (finalPrize < 0) {
     notifications.push(
-      createNotification(
-        isJackpot ? "🎰 JACKPOT!" : "Winner!",
-        isJackpot ? "win" : "win",
-        finalPrize
-      )
+      notif(`Trap triggered! Lost $${Math.abs(finalPrize)}`, "trap")
     );
   } else {
-    notifications.push(createNotification("No match...", "loss"));
+    notifications.push(notif("No match...", "loss"));
   }
 
   return {
     ...state,
-    balance: state.balance + finalPrize,
-    totalEarned: state.totalEarned + finalPrize,
+    balance: Math.max(0, state.balance + finalPrize),
+    totalEarned: finalPrize > 0 ? state.totalEarned + finalPrize : state.totalEarned,
     totalCardsPlayed: state.totalCardsPlayed + 1,
     totalWins: finalPrize > 0 ? state.totalWins + 1 : state.totalWins,
+    totalTrapsTriggered: trapTriggered
+      ? state.totalTrapsTriggered + 1
+      : state.totalTrapsTriggered,
     biggestWin: Math.max(state.biggestWin, finalPrize),
     cards: newCards,
+    activeCardId: nextCard?.id ?? null,
     showJackpot: isJackpot,
     jackpotAmount: isJackpot ? finalPrize : state.jackpotAmount,
     notifications,
   };
 }
 
-export function autoScratchStep(state: GameState): GameState {
-  const autoLevel = state.upgrades.find((u) => u.id === "auto_scratch")?.currentLevel ?? 0;
-  if (autoLevel === 0 || !state.autoScratchActive) return state;
+export function buyUpgrade(
+  state: GameState,
+  upgradeId: string
+): GameState {
+  const idx = state.upgrades.findIndex((u) => u.id === upgradeId);
+  if (idx === -1) return state;
+  const upgrade = state.upgrades[idx];
+  if (upgrade.purchased) return state;
+  if (state.balance < upgrade.cost) return state;
 
-  const activeCard = state.cards.find(
-    (c) => c.id === state.activeCardId && !c.revealed
-  );
-  if (!activeCard) return state;
-
-  const unscratched = activeCard.cells
-    .map((c, i) => ({ cell: c, index: i }))
-    .filter(({ cell }) => !cell.scratched);
-
-  if (unscratched.length === 0) return state;
-
-  const scratchCount = Math.min(autoLevel, unscratched.length);
-  let newState = state;
-
-  for (let i = 0; i < scratchCount; i++) {
-    const target = unscratched[i];
-    newState = scratchCell(newState, activeCard.id, target.index);
+  if (upgrade.prerequisite) {
+    const prereq = state.upgrades.find((u) => u.id === upgrade.prerequisite);
+    if (!prereq?.purchased) return state;
   }
 
-  return newState;
-}
-
-export function unlockTier(state: GameState, tierId: string): GameState {
-  const tierIndex = state.cardTiers.findIndex((t) => t.id === tierId);
-  if (tierIndex === -1) return state;
-
-  const tier = state.cardTiers[tierIndex];
-  if (tier.unlocked) return state;
-  if (state.balance < tier.unlockCost) return state;
-
-  const newTiers = [...state.cardTiers];
-  newTiers[tierIndex] = { ...tier, unlocked: true };
-
-  return {
-    ...state,
-    balance: state.balance - tier.unlockCost,
-    totalSpent: state.totalSpent + tier.unlockCost,
-    cardTiers: newTiers,
-    notifications: [
-      ...state.notifications,
-      createNotification(`${tier.name} unlocked!`, "upgrade"),
-    ],
-  };
-}
-
-export function buyUpgrade(state: GameState, upgradeId: string): GameState {
-  const upgradeIndex = state.upgrades.findIndex((u) => u.id === upgradeId);
-  if (upgradeIndex === -1) return state;
-
-  const upgrade = state.upgrades[upgradeIndex];
-  if (upgrade.currentLevel >= upgrade.maxLevel) return state;
-
-  const cost = getUpgradeCost(upgrade);
-  if (state.balance < cost) return state;
-
   const newUpgrades = [...state.upgrades];
-  newUpgrades[upgradeIndex] = {
-    ...upgrade,
-    currentLevel: upgrade.currentLevel + 1,
-  };
+  newUpgrades[idx] = { ...upgrade, purchased: true };
 
-  return {
+  let newState = {
     ...state,
-    balance: state.balance - cost,
-    totalSpent: state.totalSpent + cost,
+    balance: state.balance - upgrade.cost,
+    totalSpent: state.totalSpent + upgrade.cost,
     upgrades: newUpgrades,
     notifications: [
       ...state.notifications,
-      createNotification(`${upgrade.name} upgraded to level ${upgrade.currentLevel + 1}!`, "upgrade"),
+      notif(`${upgrade.name} purchased!`, "upgrade"),
     ],
   };
+
+  return recalcStats(newState);
 }
 
-export function buyPrestigeUpgrade(state: GameState, upgradeId: string): GameState {
-  const upgradeIndex = state.prestigeUpgrades.findIndex((u) => u.id === upgradeId);
-  if (upgradeIndex === -1) return state;
-
-  const upgrade = state.prestigeUpgrades[upgradeIndex];
+export function buyPrestigeUpgrade(
+  state: GameState,
+  upgradeId: string
+): GameState {
+  const idx = state.prestigeUpgrades.findIndex((u) => u.id === upgradeId);
+  if (idx === -1) return state;
+  const upgrade = state.prestigeUpgrades[idx];
   if (upgrade.purchased) return state;
   if (state.jackPoints < upgrade.cost) return state;
 
   const newUpgrades = [...state.prestigeUpgrades];
-  newUpgrades[upgradeIndex] = { ...upgrade, purchased: true };
+  newUpgrades[idx] = { ...upgrade, purchased: true };
 
   return {
     ...state,
@@ -373,75 +632,146 @@ export function buyPrestigeUpgrade(state: GameState, upgradeId: string): GameSta
     prestigeUpgrades: newUpgrades,
     notifications: [
       ...state.notifications,
-      createNotification(`${upgrade.name} purchased!`, "prestige"),
+      notif(`${upgrade.name} purchased permanently!`, "prestige"),
     ],
   };
 }
 
 export function prestige(state: GameState): GameState {
-  if (state.totalEarned < 10000) return state;
-
-  const earnedJackPoints = Math.floor(Math.sqrt(state.totalEarned / 1000));
+  const earnedJP = Math.max(
+    1,
+    Math.floor(
+      Math.sqrt(state.totalEarned / 1e6) +
+        state.totalWins * 0.5 +
+        state.biggestWin / 1e8
+    )
+  );
 
   const savedPrestigeUpgrades = state.prestigeUpgrades.map((u) => ({ ...u }));
-  const savedJackPoints = state.jackPoints + earnedJackPoints;
+  const savedJP = state.jackPoints + earnedJP;
   const savedPrestiges = state.totalPrestiges + 1;
 
-  const fresh = createInitialState();
+  const fresh = getFullState();
 
-  const hasStartBonus = savedPrestigeUpgrades.find(
-    (u) => u.id === "start_bonus" && u.purchased
+  fresh.jackPoints = savedJP;
+  fresh.totalPrestiges = savedPrestiges;
+  fresh.prestigeUpgrades = savedPrestigeUpgrades;
+
+  // Re-apply prestige effects
+  const hasHeadStart = savedPrestigeUpgrades.find(
+    (u) => u.id === "head_start" && u.purchased
   );
-  const hasAutoStart = savedPrestigeUpgrades.find(
-    (u) => u.id === "auto_start" && u.purchased
+  if (hasHeadStart) fresh.balance = 500;
+
+  const hasLuckyLegacy = savedPrestigeUpgrades.find(
+    (u) => u.id === "lucky_legacy" && u.purchased
   );
+  if (hasLuckyLegacy) fresh.luck += 15;
 
-  const newUpgrades = fresh.upgrades.map((u) => {
-    if (u.id === "auto_scratch" && hasAutoStart) {
-      return { ...u, currentLevel: 1 };
-    }
-    return u;
-  });
+  const hasSpeedDemon = savedPrestigeUpgrades.find(
+    (u) => u.id === "speed_demon" && u.purchased
+  );
+  if (hasSpeedDemon) {
+    fresh.upgrades = fresh.upgrades.map((u) =>
+      u.id === "power_1" || u.id === "power_2" ? { ...u, purchased: true } : u
+    );
+    fresh.scratchPower = 2;
+  }
 
-  return {
-    ...fresh,
-    balance: hasStartBonus ? 500 : fresh.balance,
-    jackPoints: savedJackPoints,
-    totalPrestiges: savedPrestiges,
-    prestigeUpgrades: savedPrestigeUpgrades,
-    upgrades: newUpgrades,
-    notifications: [
-      ...fresh.notifications,
-      createNotification(
-        `Prestige! Earned ${earnedJackPoints} Jack Points (${savedJackPoints} total)`,
-        "prestige"
-      ),
-    ],
-  };
+  const hasScratchMemory = savedPrestigeUpgrades.find(
+    (u) => u.id === "scratch_memory" && u.purchased
+  );
+  if (hasScratchMemory) {
+    fresh.autoScratcherUnlocked = true;
+    fresh.upgrades = fresh.upgrades.map((u) =>
+      u.id === "auto_unlock" ? { ...u, purchased: true } : u
+    );
+  }
+
+  // Unlock catalogues
+  if (savedPrestiges >= 1) {
+    fresh.catalogues = fresh.catalogues.map((c) =>
+      c.id === "cat_2" ? { ...c, unlocked: true } : c
+    );
+  }
+  if (savedPrestiges >= 2) {
+    fresh.catalogues = fresh.catalogues.map((c) =>
+      c.id === "cat_3" ? { ...c, unlocked: true } : c
+    );
+  }
+  if (savedPrestiges >= 3) {
+    fresh.catalogues = fresh.catalogues.map((c) =>
+      c.id === "cat_4" ? { ...c, unlocked: true } : c
+    );
+  }
+
+  fresh.notifications = [
+    notif(`Prestige! Earned ${earnedJP} Jack Points (${savedJP} total)`, "prestige"),
+  ];
+
+  return fresh;
 }
 
-export function dismissNotification(state: GameState, notifId: string): GameState {
+export function autoScratchTick(state: GameState): GameState {
+  if (!state.autoScratcherUnlocked || !state.autoScratcherActive) return state;
+
+  // Auto-buy cards if we have a selected type
+  let cur = state;
+  if (cur.autoScratcherCardTypeId) {
+    const ct = cur.cardTypes.find((c) => c.id === cur.autoScratcherCardTypeId);
+    if (ct && cur.balance >= ct.baseCost && cur.cards.filter((c) => !c.revealed && !c.discarded).length < cur.autoScratcherQueueSize) {
+      cur = buyCard(cur, ct.id);
+    }
+  }
+
+  // Auto-scratch the active card
+  const activeCard = cur.cards.find(
+    (c) => c.id === cur.activeCardId && !c.revealed && !c.discarded
+  );
+  if (!activeCard) return cur;
+
+  const unscratchedZone = activeCard.zones.findIndex(
+    (z) => !z.symbols.every((s) => s.scratched)
+  );
+  if (unscratchedZone === -1) return cur;
+
+  // Check for fan gadget - auto-discard if trap found by peeking first
+  const hasFan = cur.upgrades.find((u) => u.id === "fan" && u.purchased);
+  if (hasFan && activeCard.hasTrap) {
+    // Peek the next zone
+    const peeked = peekZone(cur, activeCard.id, unscratchedZone);
+    const peekedCard = peeked.cards.find((c) => c.id === activeCard.id);
+    if (peekedCard) {
+      const zone = peekedCard.zones[unscratchedZone];
+      const hasTrapInZone = zone.symbols.some((s) => SYMBOLS[s.symbolId]?.isTrap);
+      if (hasTrapInZone) {
+        return discardCard(peeked, activeCard.id);
+      }
+    }
+    return scratchZone(peeked, activeCard.id, unscratchedZone);
+  }
+
+  return scratchZone(cur, activeCard.id, unscratchedZone);
+}
+
+export function setAutoScratcherCardType(
+  state: GameState,
+  cardTypeId: string | null
+): GameState {
+  return { ...state, autoScratcherCardTypeId: cardTypeId };
+}
+
+export function dismissNotification(state: GameState, id: string): GameState {
   return {
     ...state,
-    notifications: state.notifications.filter((n) => n.id !== notifId),
+    notifications: state.notifications.filter((n) => n.id !== id),
   };
 }
 
-export function revealAllCells(card: ScratchCardInstance): ScratchCardInstance {
-  return {
-    ...card,
-    cells: card.cells.map((c) => ({ ...c, scratched: true })),
-    scratchedPercent: 1,
-  };
+export function getCardTypeCost(state: GameState, cardType: CardType): number {
+  return cardType.baseCost;
 }
 
-export function getCardCost(state: GameState, tier: ScratchCardTier): number {
-  const bulkDiscount = state.upgrades.find((u) => u.id === "bulk_discount");
-  const discountLevel = bulkDiscount?.currentLevel ?? 0;
-  const prestigeDiscount = state.prestigeUpgrades.find(
-    (u) => u.id === "discount" && u.purchased
-  );
-  let cost = tier.cost * (1 - discountLevel * 0.1);
-  if (prestigeDiscount) cost *= 0.85;
-  return Math.floor(cost);
+export function setActiveCard(state: GameState, cardId: string | null): GameState {
+  return { ...state, activeCardId: cardId };
 }

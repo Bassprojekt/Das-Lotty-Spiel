@@ -1,87 +1,154 @@
-export type SymbolType = "cherry" | "lemon" | "grape" | "bell" | "star" | "diamond" | "seven" | "crown";
+export type RiskLevel = "safe" | "low" | "medium" | "high" | "very_high" | "ultra";
 
-export interface CardSymbol {
-  type: SymbolType;
+export type SymbolDef = {
+  id: string;
   emoji: string;
-  multiplier: number;
-}
+  name: string;
+  isTrap: boolean;
+  value: number;
+};
 
-export interface ScratchCardTier {
+export type ZoneSymbol = {
+  symbolId: string;
+  scratched: boolean;
+  peeked: boolean;
+};
+
+export type ScratchZone = {
+  symbols: ZoneSymbol[];
+};
+
+export type CardType = {
   id: string;
   name: string;
-  cost: number;
+  icon: string;
+  catalogueId: string;
+  baseCost: number;
+  riskLevel: RiskLevel;
+  zones: number;
+  symbolsPerZone: number;
+  matchRequired: number;
+  winSymbols: string[];
+  trapSymbols: string[];
+  jackpotMultiplier: number;
+  basePrize: number;
+  description: string;
+  colorFrom: string;
+  colorTo: string;
+  unlocked: boolean;
+  unlockCost: number;
+  isPrestige: boolean;
+};
+
+export type Catalogue = {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
   unlockCost: number;
   unlocked: boolean;
-  gridCols: number;
-  gridRows: number;
-  matchRequired: number;
-  symbols: CardSymbol[];
-  jackpotMultiplier: number;
-  color: string;
-  gradientFrom: string;
-  gradientTo: string;
-  description: string;
-}
+  unlockRequirement: string;
+};
 
-export interface Cell {
-  symbol: CardSymbol;
-  scratched: boolean;
-}
+export type CardLevel = {
+  level: number;
+  prizeMultiplier: number;
+  costMultiplier: number;
+};
 
-export interface ScratchCardInstance {
+export type ScratchCard = {
   id: string;
-  tierId: string;
-  cells: Cell[];
+  cardTypeId: string;
+  level: number;
+  zones: ScratchZone[];
   prize: number;
   revealed: boolean;
+  discarded: boolean;
   scratchedPercent: number;
-}
+  hasTrap: boolean;
+  trapTriggered: boolean;
+};
 
-export interface Upgrade {
-  id: string;
+export type UpgradeId =
+  | "luck_1" | "luck_2" | "luck_3" | "luck_4"
+  | "power_1" | "power_2" | "power_3" | "power_4"
+  | "area_1" | "area_2"
+  | "multi_1" | "multi_2" | "multi_3"
+  | "auto_unlock" | "auto_queue_1" | "auto_queue_2" | "auto_speed"
+  | "spacebar" | "fan" | "recycle";
+
+export type Upgrade = {
+  id: UpgradeId;
   name: string;
   description: string;
-  baseCost: number;
-  currentLevel: number;
-  maxLevel: number;
-  costMultiplier: number;
-  effect: string;
+  category: "luck" | "power" | "area" | "multi" | "auto" | "qol";
+  cost: number;
+  purchased: boolean;
   icon: string;
-}
+  phase: "early" | "mid" | "late";
+  prerequisite?: UpgradeId;
+};
 
-export interface PrestigeUpgrade {
-  id: string;
+export type PrestigeUpgradeId =
+  | "head_start" | "lucky_legacy" | "scratch_memory"
+  | "golden_hands" | "jackpot_magnet" | "speed_demon"
+  | "banco" | "recycler_pro";
+
+export type PrestigeUpgrade = {
+  id: PrestigeUpgradeId;
   name: string;
   description: string;
   cost: number;
   purchased: boolean;
   icon: string;
-}
+};
 
-export interface GameState {
+export type Notification = {
+  id: string;
+  message: string;
+  type: "win" | "loss" | "trap" | "upgrade" | "prestige" | "info" | "jackpot";
+  amount?: number;
+  timestamp: number;
+};
+
+export type GameState = {
   balance: number;
   totalEarned: number;
   totalSpent: number;
   totalCardsPlayed: number;
   totalWins: number;
+  totalTrapsTriggered: number;
+  totalDiscarded: number;
   biggestWin: number;
   jackPoints: number;
   totalPrestiges: number;
-  cards: ScratchCardInstance[];
+  dayJobLevel: number;
+  dayJobCooldown: number;
+
+  catalogues: Catalogue[];
+  cardTypes: CardType[];
+  cards: ScratchCard[];
   activeCardId: string | null;
+  selectedCardTypeId: string | null;
+
   upgrades: Upgrade[];
   prestigeUpgrades: PrestigeUpgrade[];
-  cardTiers: ScratchCardTier[];
-  autoScratchActive: boolean;
+
+  autoScratcherUnlocked: boolean;
+  autoScratcherActive: boolean;
+  autoScratcherQueue: string[];
+  autoScratcherQueueSize: number;
+  autoScratcherSpeed: number;
+  autoScratcherCardTypeId: string | null;
+
   showJackpot: boolean;
   jackpotAmount: number;
+  jackpotEmoji: string;
   notifications: Notification[];
-}
 
-export interface Notification {
-  id: string;
-  message: string;
-  type: "win" | "loss" | "upgrade" | "prestige" | "info";
-  amount?: number;
-  timestamp: number;
-}
+  luck: number;
+  scratchPower: number;
+  scratchArea: number;
+  rewardMultiplier: number;
+  jackpotChanceBonus: number;
+};
