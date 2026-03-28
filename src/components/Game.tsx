@@ -137,26 +137,21 @@ export default function Game() {
   }, []);
 
   const handleCardDragEnd = useCallback((cardId: string, x: number, y: number) => {
-    // Trash can is at bottom center - check if card was dropped near it
-    // Desk area is approximately 600px wide, trash can is at center bottom
-    // Card center position:
-    const cardCenterX = x + 55; // half of card width (110)
-    const cardCenterY = y + 70; // half of card height (140)
+    // Trash can is at bottom left of desk
+    const cardCenterX = x + 55;
+    const cardCenterY = y + 70;
 
-    // Trash can approximate position (bottom center of desk)
-    // The desk element can vary in size, but we estimate trash can at ~50% x, ~90% y
     const deskEl = document.querySelector('[data-desk="true"]');
-    let trashX = 300; // fallback center
-    let trashY = 500; // fallback bottom
+    let trashX = 50; // bottom left
+    let trashY = 500;
     if (deskEl) {
       const rect = deskEl.getBoundingClientRect();
-      trashX = rect.width / 2;
-      trashY = rect.height - 40;
+      trashX = 50; // left offset + half of trash can width (20px + 40px)
+      trashY = rect.height - 50; // bottom offset + half of trash can height
     }
 
     const dist = Math.sqrt((cardCenterX - trashX) ** 2 + (cardCenterY - trashY) ** 2);
     if (dist < 80) {
-      // Card dropped on trash can!
       setDeskCards((d) => d.filter((c) => c.cardId !== cardId));
       setState((p) => discardCard(p, cardId));
     }
@@ -311,11 +306,18 @@ export default function Game() {
               <ScratchCard card={activeCard} cardType={activeCardType} isActive={true} scratchPower={state.scratchPower}
                 onScratch={handleScratch} onPeek={handlePeek} onDiscard={handleDiscard} onReveal={handleReveal} onSelect={() => {}} />
               {activeCard.revealed && (
-                <div className="flex gap-2">
+                <div className="flex gap-3 animate-slide-down">
+                  <button onClick={() => {
+                    setDeskCards((d) => d.map((c) => c.cardId === activeCard.id ? { ...c, slot: "desk" } : c));
+                    setState((p) => setActiveCard(p, null));
+                  }}
+                    className="px-6 py-2.5 bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 border border-neutral-500 shadow-lg">
+                    ✓ Back to Desk
+                  </button>
                   <button onClick={() => trashCard(activeCard.id)}
-                    className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-all active:scale-95">🗑️ Trash</button>
-                  <button onClick={() => setDeskCards((d) => d.map((c) => c.cardId === activeCard.id ? { ...c, slot: "desk" } : c))}
-                    className="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-bold rounded-lg transition-all active:scale-95">✓ Keep</button>
+                    className="px-4 py-2.5 bg-red-800 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all active:scale-95 border border-red-600">
+                    🗑️ Trash
+                  </button>
                 </div>
               )}
             </div>
@@ -368,26 +370,53 @@ export default function Game() {
                 })
               )}
 
-              {/* Trash Can - bottom center of desk */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+              {/* Trash Can - bottom left of desk, big and visible */}
+              <div className="absolute bottom-3 left-3 z-30 flex flex-col items-center group cursor-pointer"
+                title="Drag cards here to trash them">
                 <div className="relative">
+                  {/* Glow ring when hovering */}
+                  <div className="absolute -inset-2 rounded-full bg-red-500/0 group-hover:bg-red-500/20 transition-all duration-300" />
+
                   {/* Can body */}
-                  <div className="w-14 h-16 rounded-b-lg overflow-hidden relative"
-                    style={{ background: "linear-gradient(180deg, #57534e, #44403c)", border: "2px solid #78716c", borderBottom: "none", borderRadius: "4px 4px 8px 8px" }}>
+                  <div className="w-20 h-24 rounded-b-xl overflow-hidden relative shadow-xl transition-all group-hover:scale-110"
+                    style={{
+                      background: "linear-gradient(180deg, #6b7280, #4b5563, #374151)",
+                      border: "2px solid #9ca3af",
+                      borderBottom: "none",
+                      borderRadius: "6px 6px 12px 12px",
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)",
+                    }}>
                     {/* Lid */}
-                    <div className="absolute -top-2 left-0.5 right-0.5 h-3 rounded-t-md"
-                      style={{ background: "#78716c", border: "1px solid #a8a29e" }} />
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-1.5 rounded-full"
-                      style={{ background: "#a8a29e" }} />
+                    <div className="absolute -top-3 -left-1 -right-1 h-4 rounded-t-md"
+                      style={{ background: "linear-gradient(180deg, #9ca3af, #6b7280)", border: "1px solid #d1d5db", borderBottom: "none" }} />
+                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full"
+                      style={{ background: "#d1d5db", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+
+                    {/* Opening on lid */}
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-2 rounded-sm bg-black/40" />
+
                     {/* Stripes */}
-                    <div className="absolute top-4 left-0 right-0 flex justify-center gap-1.5">
-                      {[0, 1, 2].map((i) => <div key={i} className="w-1 h-8 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />)}
+                    <div className="absolute top-5 left-0 right-0 flex justify-center gap-2">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="w-1.5 h-10 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
+                      ))}
                     </div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg">🗑️</span>
+
+                    {/* Trash icon */}
+                    <div className="absolute inset-0 flex items-center justify-center pt-2">
+                      <span className="text-2xl drop-shadow-lg">🗑️</span>
                     </div>
                   </div>
-                  <div className="text-[8px] text-neutral-500 mt-0.5 font-bold text-center">DROP HERE</div>
+
+                  {/* Label */}
+                  <div className="text-[9px] text-neutral-400 mt-1 font-bold text-center tracking-wider group-hover:text-red-400 transition-colors">
+                    TRASH
+                  </div>
+
+                  {/* Arrow hint */}
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-[9px] text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    Drop cards here ↙
+                  </div>
                 </div>
               </div>
             </div>
