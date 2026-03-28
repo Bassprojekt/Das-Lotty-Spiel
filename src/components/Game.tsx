@@ -24,13 +24,11 @@ const riskColors: Record<string, string> = {
 interface DeskCardState { cardId: string; slot: "desk" | "center" | "robot" | "robot_done"; x: number; y: number; z: number; }
 let nextZ = 10;
 function randomPos(i: number) {
-  // Avoid top-left corner (fan gadget area ~100x100px)
-  const baseX = 30 + (i % 5) * 125 + (Math.random() * 20 - 10);
-  const baseY = 30 + Math.floor(i / 5) * 155 + (Math.random() * 15 - 7);
-  // If position is in fan area (top-left 100x120), shift it right/down
-  const x = baseX < 120 ? baseX + 120 : baseX;
-  const y = baseY < 130 ? baseY + 20 : baseY;
-  return { x, y };
+  // Cards start from x=150 to avoid fan gadget area (top-left)
+  return {
+    x: 150 + (i % 4) * 130 + (Math.random() * 20 - 10),
+    y: 20 + Math.floor(i / 4) * 155 + (Math.random() * 15 - 7),
+  };
 }
 
 export default function Game() {
