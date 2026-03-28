@@ -544,13 +544,13 @@ export function revealCard(
 
   for (const [symId, count] of symbolCounts) {
     if (count >= cardType.matchRequired) {
-      const sym = SYMBOLS[symId];
       const matchBonus = count - cardType.matchRequired + 1;
-      let prize = cardType.basePrize * (sym.value / 10) * matchBonus * levelMult;
+      let prize = cardType.basePrize * matchBonus * levelMult;
       prize *= state.rewardMultiplier;
 
+      // All zones matching = jackpot
       if (count >= cardType.zones * cardType.symbolsPerZone) {
-        let jp = cardType.basePrize * cardType.jackpotMultiplier * (sym.value / 10) * levelMult;
+        let jp = cardType.basePrize * cardType.jackpotMultiplier * levelMult;
         jp *= state.rewardMultiplier;
         prize = Math.max(prize, jp);
         isJackpot = true;
