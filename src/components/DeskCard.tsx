@@ -316,7 +316,7 @@ export default function DeskCard({
         width: design.shape === "oval" ? w + 10 : w,
         height: design.shape === "oval" ? h - 10 : design.shape === "stubby" ? h - 15 : h,
         cursor: isDragging ? "grabbing" : "grab",
-        transition: isDragging ? "none" : "transform 0.15s, box-shadow 0.15s",
+        transition: isDragging ? "none" : "left 0.6s ease-in, top 0.6s ease-in, transform 0.15s, box-shadow 0.15s",
         transform: isDragging ? "scale(1.08) rotate(1deg)" : "scale(1)",
       }}
       onPointerDown={handlePointerDown}

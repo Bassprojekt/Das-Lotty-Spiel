@@ -63,7 +63,29 @@ export default function Game() {
   }, []);
   const trashCard = useCallback((cardId: string) => { setDeskCards((d) => d.filter((c) => c.cardId !== cardId)); setState((p) => discardCard(p, cardId)); }, []);
   const sendToRobot = useCallback((cardId: string) => setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "robot" } : c))), []);
-  const fanAllToRobot = useCallback(() => setDeskCards((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c))), []);
+
+  const fanAllToRobot = useCallback(() => {
+    // Get robot position (bottom right area)
+    const deskEl = document.querySelector('[data-desk="true"]');
+    let targetX = 600;
+    let targetY = 400;
+    if (deskEl) {
+      const rect = deskEl.getBoundingClientRect();
+      targetX = rect.width - 120;
+      targetY = rect.height - 100;
+    }
+
+    // First animate cards flying to robot position
+    setDeskCards((d) => d.map((c) => {
+      if (c.slot !== "desk") return c;
+      return { ...c, x: targetX, y: targetY };
+    }));
+
+    // After animation completes, move to robot slot
+    setTimeout(() => {
+      setDeskCards((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c)));
+    }, 600);
+  }, []);
   const handleCardDrag = useCallback((cardId: string, x: number, y: number) => setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, x, y } : c))), []);
   const handleBringFront = useCallback((cardId: string) => setDeskCards((d) => d.map((c) => (c.cardId === cardId ? { ...c, z: ++nextZ } : c))), []);
   const handleCardDragEnd = useCallback((cardId: string, x: number, y: number) => {
