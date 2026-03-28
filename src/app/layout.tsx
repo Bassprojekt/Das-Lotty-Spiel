@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Next.js Template",
-  description: "A minimal Next.js starter template",
+  title: "Lucky Scratch - Scratch Card Game",
+  description:
+    "A satisfying scratch card incremental game. Buy scratch-offs, chase jackpots, and build your fortune!",
 };
 
 export default function RootLayout({
