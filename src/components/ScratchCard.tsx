@@ -31,26 +31,31 @@ export default function ScratchCard({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
-  const revealedRef = useRef(false);
+  const canvasInitRef = useRef(false);
+  const cardIdRef = useRef<string | null>(null);
 
   const cols = Math.ceil(Math.sqrt(cardType.zones));
   const rows = Math.ceil(cardType.zones / cols);
 
+  // Only init canvas when card ID changes (new card) or when revealed/discarded
   useEffect(() => {
-    if (card.revealed && !revealedRef.current) {
-      revealedRef.current = true;
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-  }, [card.revealed]);
-
-  const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container || card.revealed || card.discarded) return;
+    if (!canvas || !container) return;
+
+    // If card was just revealed, clear the canvas
+    if (card.revealed) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
+
+    // Only re-init if this is a new card
+    if (cardIdRef.current === card.id && canvasInitRef.current) return;
+    cardIdRef.current = card.id;
+    canvasInitRef.current = true;
 
     const rect = container.getBoundingClientRect();
     canvas.width = rect.width * 2;
@@ -60,6 +65,7 @@ export default function ScratchCard({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(2, 2);
 
     // Draw scratch surface
@@ -69,7 +75,7 @@ export default function ScratchCard({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, rect.width, rect.height);
 
-    // Draw zone grid lines
+    // Grid lines
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 1;
     for (let i = 1; i < cols; i++) {
@@ -87,56 +93,37 @@ export default function ScratchCard({
       ctx.stroke();
     }
 
-    // Show peek hints for already peeked zones
+    // Hint text
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("SCRATCH HERE", rect.width / 2, rect.height / 2 + 4);
+
+    // Apply already-scratched zones as holes
     for (let z = 0; z < card.zones.length; z++) {
       const zone = card.zones[z];
-      const col = z % cols;
-      const row = Math.floor(z / cols);
-      const zx = (col / cols) * rect.width;
-      const zy = (row / rows) * rect.height;
-      const zw = rect.width / cols;
-      const zh = rect.height / rows;
-
-      if (zone.symbols.some((s) => s.peeked) && !zone.symbols.every((s) => s.scratched)) {
-        // Show a subtle peek indicator
-        ctx.fillStyle = "rgba(255,255,255,0.08)";
+      if (zone.symbols.some((s) => s.scratched)) {
+        const col = z % cols;
+        const row = Math.floor(z / cols);
+        const zx = (col / cols) * rect.width;
+        const zy = (row / rows) * rect.height;
+        const zw = rect.width / cols;
+        const zh = rect.height / rows;
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = "rgba(0,0,0,1)";
         ctx.fillRect(zx + 2, zy + 2, zw - 4, zh - 4);
-
-        // Show the emoji very faintly in the corner
-        ctx.globalAlpha = 0.3;
-        ctx.font = `${Math.min(zw, zh) * 0.35}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        for (const sym of zone.symbols) {
-          const emoji = SYMBOLS[sym.symbolId]?.emoji ?? "?";
-          ctx.fillText(emoji, zx + zw * 0.25, zy + zh * 0.25);
-        }
-        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
       }
     }
-
-    // Label
-    if (!card.revealed) {
-      ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("SCRATCH", rect.width / 2, rect.height - 8);
-    }
-
-    revealedRef.current = false;
-  }, [card, cardType, cols, rows]);
-
-  useEffect(() => {
-    initCanvas();
-  }, [initCanvas]);
+  }, [card.id, card.revealed, card.zones, cardType, cols, rows]);
 
   const getZoneAtPoint = useCallback(
     (x: number, y: number, width: number, height: number): number => {
       const col = Math.floor((x / width) * cols);
       const row = Math.floor((y / height) * rows);
-      return row * cols + col;
+      return Math.min(row * cols + col, cardType.zones - 1);
     },
-    [cols, rows]
+    [cols, rows, cardType.zones]
   );
 
   const handleScratch = useCallback(
@@ -149,17 +136,16 @@ export default function ScratchCard({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const radius = 15 + scratchPower * 8;
+      const radius = 14 + scratchPower * 6;
 
-      // Right-click style = peek (smaller radius, don't fully reveal)
       if (isPeeking) {
-        // Draw a lighter circle (partial scratch)
         ctx.globalCompositeOperation = "destination-out";
-        ctx.globalAlpha = 0.3;
+        ctx.globalAlpha = 0.25;
         ctx.beginPath();
-        ctx.arc(x, y, radius * 0.5, 0, Math.PI * 2);
+        ctx.arc(x, y, radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
 
         const zoneIdx = getZoneAtPoint(x, y, rect.width, rect.height);
         if (zoneIdx >= 0 && zoneIdx < card.zones.length) {
@@ -172,6 +158,7 @@ export default function ScratchCard({
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
 
       const zoneIdx = getZoneAtPoint(x, y, rect.width, rect.height);
       if (zoneIdx >= 0 && zoneIdx < card.zones.length) {
@@ -216,11 +203,10 @@ export default function ScratchCard({
 
   if (card.discarded) {
     return (
-      <div className="relative rounded-xl overflow-hidden border-2 border-red-500/30 bg-neutral-900/50 opacity-40">
-        <div
-          className="flex items-center justify-center"
-          style={{ aspectRatio: "1/1", width: 200 }}
-        >
+      <div className="relative rounded-xl overflow-hidden border-2 border-red-500/30 bg-neutral-900/50 opacity-40"
+        style={{ width: "100%", aspectRatio: "1/1", maxWidth: 280 }}
+      >
+        <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <span className="text-3xl">🗑️</span>
             <div className="text-xs text-red-400 mt-1">Discarded</div>
@@ -241,7 +227,7 @@ export default function ScratchCard({
       style={{
         width: "100%",
         aspectRatio: "1/1",
-        maxWidth: cols <= 3 ? 280 : cols <= 4 ? 320 : 360,
+        maxWidth: cols <= 3 ? 300 : cols <= 4 ? 340 : 380,
       }}
       onClick={() => !isActive && onSelect(card.id)}
     >
@@ -253,35 +239,44 @@ export default function ScratchCard({
           gridTemplateRows: `repeat(${rows}, 1fr)`,
         }}
       >
-        {card.zones.map((zone, zi) => (
-          <div
-            key={zi}
-            className={`flex items-center justify-center rounded-sm transition-all duration-300 ${
-              zone.symbols.some((s) => SYMBOLS[s.symbolId]?.isTrap && s.scratched)
-                ? "bg-red-900/50"
-                : zone.symbols.every((s) => s.scratched)
-                ? "bg-neutral-800/80"
-                : zone.symbols.some((s) => s.peeked)
-                ? "bg-neutral-800/50"
-                : "bg-neutral-900"
-            }`}
-          >
-            <span
-              className={`transition-all duration-500 ${
-                zone.symbols.some((s) => s.scratched)
-                  ? "opacity-100 scale-100"
-                  : zone.symbols.some((s) => s.peeked)
-                  ? "opacity-40 scale-75 blur-[1px]"
-                  : "opacity-0 scale-50"
+        {card.zones.map((zone, zi) => {
+          const hasTrapRevealed = zone.symbols.some(
+            (s) => SYMBOLS[s.symbolId]?.isTrap && s.scratched
+          );
+          const allScratched = zone.symbols.every((s) => s.scratched);
+          const anyPeeked = zone.symbols.some((s) => s.peeked);
+          const anyScratched = zone.symbols.some((s) => s.scratched);
+
+          return (
+            <div
+              key={zi}
+              className={`flex items-center justify-center rounded-sm transition-all duration-300 ${
+                hasTrapRevealed
+                  ? "bg-red-900/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.3)]"
+                  : allScratched
+                  ? "bg-neutral-800/80"
+                  : anyPeeked
+                  ? "bg-neutral-800/50"
+                  : "bg-neutral-900"
               }`}
-              style={{ fontSize: `${Math.min(36, 200 / cols)}px` }}
             >
-              {zone.symbols.map((s, si) => (
-                <span key={si}>{SYMBOLS[s.symbolId]?.emoji}</span>
-              ))}
-            </span>
-          </div>
-        ))}
+              <span
+                className={`transition-all duration-300 ${
+                  anyScratched
+                    ? "opacity-100 scale-100"
+                    : anyPeeked
+                    ? "opacity-30 scale-75 blur-[2px]"
+                    : "opacity-0 scale-50"
+                }`}
+                style={{ fontSize: `${Math.min(32, 180 / cols)}px` }}
+              >
+                {zone.symbols.map((s, si) => (
+                  <span key={si}>{SYMBOLS[s.symbolId]?.emoji}</span>
+                ))}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Canvas scratch overlay */}
@@ -300,22 +295,23 @@ export default function ScratchCard({
 
       {/* Prize overlay */}
       {card.revealed && card.prize > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in duration-500">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
-            className={`bg-black/80 backdrop-blur-sm rounded-xl px-4 py-2 border-2 ${
-              card.prize >= (cardType.basePrize ?? 1) * 5
-                ? "border-yellow-400 shadow-[0_0_40px_rgba(250,204,21,0.6)]"
-                : "border-green-400 shadow-[0_0_20px_rgba(74,222,128,0.4)]"
+            className={`animate-bounce-in bg-black/80 backdrop-blur-sm rounded-xl px-5 py-3 border-2 ${
+              card.prize >= (cardType.basePrize ?? 1) * 3
+                ? "border-yellow-400 shadow-[0_0_50px_rgba(250,204,21,0.6)]"
+                : "border-green-400 shadow-[0_0_25px_rgba(74,222,128,0.4)]"
             }`}
           >
             <span
               className={`font-bold ${
-                card.prize >= (cardType.basePrize ?? 1) * 5
-                  ? "text-yellow-400 text-lg"
-                  : "text-green-400 text-sm"
+                card.prize >= (cardType.basePrize ?? 1) * 3
+                  ? "text-yellow-400 text-xl"
+                  : "text-green-400 text-base"
               }`}
             >
-              WIN: ${card.prize.toLocaleString()}
+              {card.prize >= (cardType.basePrize ?? 1) * 3 ? "🎰 " : "WIN: "}
+              ${card.prize.toLocaleString()}
             </span>
           </div>
         </div>
@@ -333,47 +329,28 @@ export default function ScratchCard({
         </div>
       )}
 
-      {/* Trap warning on peeked zones */}
-      {!card.revealed && !card.discarded && isActive && card.hasTrap && (
-        <div className="absolute top-1 right-1 pointer-events-none">
-          <span className="text-xs bg-red-500/80 text-white px-1.5 py-0.5 rounded-md font-bold">
-            ⚠️
-          </span>
-        </div>
-      )}
-
-      {/* Discard button */}
+      {/* Action buttons */}
       {!card.revealed && !card.discarded && isActive && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDiscard(card.id);
-          }}
-          className="absolute bottom-1 right-1 z-10 bg-red-600/80 hover:bg-red-500 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm transition-all active:scale-90"
-        >
-          🗑️ Trash
-        </button>
-      )}
-
-      {/* Reveal all button */}
-      {!card.revealed && !card.discarded && isActive && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onReveal(card.id);
-          }}
-          className="absolute bottom-1 left-1 z-10 bg-neutral-600/80 hover:bg-neutral-500 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm transition-all active:scale-90"
-        >
-          👁️ Reveal
-        </button>
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDiscard(card.id); }}
+            className="absolute bottom-2 right-2 z-10 bg-red-600/80 hover:bg-red-500 text-white text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm transition-all active:scale-90 font-semibold"
+          >
+            🗑️ Trash
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReveal(card.id); }}
+            className="absolute bottom-2 left-2 z-10 bg-neutral-600/80 hover:bg-neutral-500 text-white text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm transition-all active:scale-90 font-semibold"
+          >
+            👁️ Reveal
+          </button>
+        </>
       )}
 
       {/* Inactive overlay */}
       {!isActive && !card.revealed && !card.discarded && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl cursor-pointer hover:bg-black/20 transition-all">
-          <span className="text-white/60 text-xs font-medium">
-            Click to select
-          </span>
+          <span className="text-white/60 text-xs font-medium">Click to select</span>
         </div>
       )}
     </div>

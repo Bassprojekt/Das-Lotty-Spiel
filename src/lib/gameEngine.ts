@@ -35,49 +35,84 @@ function pickSymbol(
   luck: number
 ): string {
   const allSymbols = [...cardType.winSymbols];
-  const trapCount = cardType.trapSymbols.length;
 
-  const winWeights = allSymbols.map((id, i) => {
+  // Weight win symbols - favor common ones, with luck bonus for rare
+  const weights = allSymbols.map((id) => {
     const sym = SYMBOLS[id];
-    const base = 1 / (sym.value + 1);
-    return base * (1 + luck * 0.05);
+    // Higher value = rarer (lower weight), but luck increases rare chance
+    const base = 2 / (sym.value + 1);
+    return base * (1 + luck * 0.03);
   });
 
-  const trapWeights = cardType.trapSymbols.map(() => {
-    return Math.max(0.01, 0.3 * (1 - luck * 0.05));
-  });
-
-  const totalWin = winWeights.reduce((a, b) => a + b, 0);
-  const totalTrap = trapWeights.reduce((a, b) => a + b, 0);
-  const total = totalWin + totalTrap;
-
+  const total = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * total;
 
-  for (let i = 0; i < winWeights.length; i++) {
-    rand -= winWeights[i];
+  for (let i = 0; i < weights.length; i++) {
+    rand -= weights[i];
     if (rand <= 0) return allSymbols[i];
   }
 
-  if (trapCount > 0) {
-    for (let i = 0; i < trapWeights.length; i++) {
-      rand -= trapWeights[i];
-      if (rand <= 0) return cardType.trapSymbols[i];
-    }
-    return cardType.trapSymbols[0];
-  }
+  return allSymbols[0];
+}
 
-  return allSymbols[allSymbols.length - 1];
+function pickTrap(cardType: CardType): string {
+  if (cardType.trapSymbols.length === 0) return cardType.winSymbols[0];
+  return cardType.trapSymbols[Math.floor(Math.random() * cardType.trapSymbols.length)];
 }
 
 function generateCard(cardType: CardType, luck: number): ScratchCard {
   const zones: ScratchZone[] = [];
+  const totalZones = cardType.zones;
   let hasTrap = false;
 
-  for (let z = 0; z < cardType.zones; z++) {
+  // Decide how many traps to place (0-2 depending on card risk)
+  const maxTraps = cardType.trapSymbols.length === 0 ? 0
+    : cardType.riskLevel === "safe" ? 0
+    : cardType.riskLevel === "low" ? 0
+    : cardType.riskLevel === "medium" ? 1
+    : cardType.riskLevel === "high" ? Math.random() < 0.7 ? 1 : 2
+    : cardType.riskLevel === "very_high" ? Math.random() < 0.5 ? 1 : 2
+    : 2;
+
+  // Pick trap zone indices
+  const trapZones = new Set<number>();
+  while (trapZones.size < maxTraps && trapZones.size < totalZones - cardType.matchRequired) {
+    trapZones.add(Math.floor(Math.random() * totalZones));
+  }
+
+  // Guarantee at least matchRequired matching symbols for a win
+  const matchSymbol = pickSymbol(cardType, luck);
+  const matchCount = cardType.matchRequired + (Math.random() < 0.3 ? 1 : 0);
+  const matchZoneIndices: number[] = [];
+
+  // Pick random zones for matching symbols (avoid trap zones)
+  const availableZones = [];
+  for (let i = 0; i < totalZones; i++) {
+    if (!trapZones.has(i)) availableZones.push(i);
+  }
+  // Shuffle and pick
+  for (let i = availableZones.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [availableZones[i], availableZones[j]] = [availableZones[j], availableZones[i]];
+  }
+  for (let i = 0; i < Math.min(matchCount, availableZones.length); i++) {
+    matchZoneIndices.push(availableZones[i]);
+  }
+
+  for (let z = 0; z < totalZones; z++) {
     const symbols: ZoneSymbol[] = [];
     for (let s = 0; s < cardType.symbolsPerZone; s++) {
-      const symbolId = pickSymbol(cardType, luck);
-      if (SYMBOLS[symbolId]?.isTrap) hasTrap = true;
+      let symbolId: string;
+
+      if (trapZones.has(z)) {
+        symbolId = pickTrap(cardType);
+        hasTrap = true;
+      } else if (matchZoneIndices.includes(z)) {
+        symbolId = matchSymbol;
+      } else {
+        symbolId = pickSymbol(cardType, luck);
+      }
+
       symbols.push({ symbolId, scratched: false, peeked: false });
     }
     zones.push({ symbols });
