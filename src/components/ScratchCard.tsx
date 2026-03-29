@@ -17,9 +17,7 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dragging, setDragging] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [bubbles, setBubbles] = useState<{ id: number; x: number; y: number; size: number }[]>([]);
   const [zonePct, setZonePct] = useState<number[]>(() => new Array(cardType.zones).fill(0));
-  const bubbleIdRef = useRef(0);
   const pixelSetsRef = useRef<Set<string>[]>([]);
   const zoneSizeRef = useRef<number[]>([]);
 
@@ -150,13 +148,14 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       }
     }
 
-    // Spawn silver dust particles
+    // Draw silver dust on canvas
     if (Math.random() < 0.3) {
-      const id = ++bubbleIdRef.current;
-      const bx = x + (Math.random() - 0.5) * r * 2;
-      const by = y + (Math.random() - 0.5) * r * 2;
-      setBubbles((prev) => [...prev.slice(-15), { id, x: bx, y: by, size: 3 + Math.random() * 6 }]);
-      setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 600);
+      ctx.fillStyle = "rgba(200,200,200,0.4)";
+      const dx = x + (Math.random() - 0.5) * r * 2;
+      const dy = y + (Math.random() - 0.5) * r * 2;
+      ctx.beginPath();
+      ctx.arc(dx, dy, 1 + Math.random() * 3, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -293,16 +292,6 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         </div>
       )}
 
-      {/* Silver dust particles */}
-      {bubbles.map((b) => (
-        <div key={b.id} style={{
-          position: "absolute", left: b.x - b.size / 2, top: b.y - b.size / 2,
-          width: b.size, height: b.size, borderRadius: "50%",
-          background: "rgba(200,200,200,0.6)",
-          pointerEvents: "none", animation: "dustFloat 0.5s ease-out forwards",
-        }} />
-      ))}
-
       {/* Instruction */}
       {!dragging && isActive && !card.revealed && (
         <div style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,0.6)", borderRadius: 12, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4, pointerEvents: "none", zIndex: 10 }}>
@@ -348,12 +337,6 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         </div>
       )}
 
-      <style>{`
-        @keyframes dustFloat {
-          0% { transform: scale(1) translateY(0); opacity: 0.7; }
-          100% { transform: scale(0.3) translateY(-20px); opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
