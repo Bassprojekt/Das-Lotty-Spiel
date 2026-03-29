@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback, useEffect, useState } from "react";
+import { playSqueakSound, playBubbleSound, playCoinSound } from "@/lib/sounds";
 
 interface DayJobProps {
   level: number;
@@ -227,12 +228,18 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
       const cleanPct = Math.min(100, (cleanedPixelsRef.current.size / (plateArea * 0.055)) * 100);
       setCleanPercent(cleanPct);
 
+      // Squeak sound randomly while scrubbing
+      if (Math.random() < 0.08) {
+        playSqueakSound();
+      }
+
       if (Math.random() < 0.4) {
         const id = ++bubbleIdRef.current;
         const bx = x + (Math.random() - 0.5) * 20;
         const by = y + (Math.random() - 0.5) * 20;
         setBubbles((prev) => [...prev.slice(-25), { id, x: bx, y: by, size: 4 + Math.random() * 12 }]);
         setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 800);
+        playBubbleSound();
       }
 
       if (cleanPct >= 90) {
@@ -240,6 +247,7 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
         isDraggingRef.current = false;
         setIsScrubbing(false);
         setMoneyPopup(true);
+        playCoinSound();
         setTimeout(() => {
           setMoneyPopup(false);
           onWork();

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { GameState } from "@/lib/types";
+import { setMuted, isMuted } from "@/lib/sounds";
 import {
   createInitialState, buyCard, buyCardBatch, unlockCardType,
   scratchZone, peekZone, discardCard, revealCard,
@@ -32,6 +33,7 @@ export default function Game() {
   const [selCat, setSelCat] = useState(0);
   const [wash, setWash] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [muted, setMutedState] = useState(false);
   const [dc, setDc] = useState<DC[]>([]);
   const di = useRef(0);
   const deskRef = useRef<HTMLDivElement>(null);
@@ -163,6 +165,7 @@ export default function Game() {
           <div className="flex items-center gap-3"><span className="text-2xl">🎰</span><h1 className="text-base font-black font-mono text-amber-400">LUCKY SCRATCH</h1></div>
           <div className="flex items-center gap-4">
             {gs.autoScratcherUnlocked && <button onClick={() => setGs((p) => ({ ...p, autoScratcherActive: !p.autoScratcherActive }))} className={`px-2 py-1 rounded text-xs font-bold border ${gs.autoScratcherActive ? "bg-emerald-800 border-emerald-500 text-emerald-300" : "bg-neutral-800 border-neutral-600 text-neutral-400"}`}>🤖 {gs.autoScratcherActive ? "ON" : "OFF"}</button>}
+            <button onClick={() => { const m = !muted; setMutedState(m); setMuted(m); }} className={`px-2 py-1 rounded text-xs font-bold border ${muted ? "bg-neutral-800 border-neutral-600 text-neutral-400" : "bg-emerald-800 border-emerald-500 text-emerald-300"}`}>{muted ? "🔇" : "🔊"}</button>
             {gs.jackPoints > 0 && <div className="text-xs font-bold text-purple-400">{gs.jackPoints} 💎</div>}
             <div className="bg-emerald-900/50 border border-emerald-700/50 rounded px-3 py-1"><span className="text-lg font-black text-emerald-400 font-mono tabular-nums">{formatMoney(gs.balance)}</span></div>
           </div>

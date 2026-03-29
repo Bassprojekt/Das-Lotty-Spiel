@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ScratchCard as SC, CardType } from "@/lib/types";
 import { SYMBOLS } from "@/lib/gameData";
+import { startScratchSound, stopScratchSound, playWinSound, playLoseSound, playJackpotSound } from "@/lib/sounds";
 
 interface Props {
   card: SC; cardType: CardType; isActive: boolean; scratchPower: number;
@@ -161,6 +162,22 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
   const rows = Math.ceil(cardType.zones / cols);
   const THRESHOLD = 70;
 
+  // Play sound when card is revealed
+  useEffect(() => {
+    if (card.revealed) {
+      stopScratchSound();
+      if (card.prize > 0) {
+        if (card.prize >= cardType.basePrize * 3) {
+          playJackpotSound();
+        } else {
+          playWinSound();
+        }
+      } else {
+        playLoseSound();
+      }
+    }
+  }, [card.revealed]);
+
   const handleZoneReveal = useCallback((cid: string, zi: number) => {
     queueMicrotask(() => onScratch(cid, zi));
   }, [onScratch]);
@@ -169,6 +186,7 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     if (card.revealed || card.discarded || !isActive) return;
     e.preventDefault(); e.stopPropagation();
     setDragging(true);
+    startScratchSound();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
@@ -179,7 +197,7 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     if (!dragging || card.revealed || !isActive) return;
   }
 
-  function onUp() { setDragging(false); }
+  function onUp() { setDragging(false); stopScratchSound(); }
 
   if (card.discarded) {
     return <div style={{ width: 320, height: 320, background: "#222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.4, border: "2px solid #555" }}>
