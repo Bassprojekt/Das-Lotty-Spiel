@@ -254,30 +254,31 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
     setIsScrubbing(false);
   }, []);
 
-  if (!active) {
-    if (cooldown > 0) {
-      return (
-        <div className="flex flex-col items-center gap-1 py-1">
-          <div className="relative w-12 h-12">
-            <div className="absolute inset-0 rounded-full bg-neutral-700 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-amber-500 animate-spin" />
-              <span className="text-[10px] font-bold text-neutral-400 font-mono">{cooldown}</span>
-            </div>
+  // Always return same wrapper - conditional content inside
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {/* Cooldown */}
+      {!active && cooldown > 0 && (
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full bg-neutral-700 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-amber-500 animate-spin" />
+            <span className="text-[10px] font-bold text-neutral-400 font-mono">{cooldown}</span>
           </div>
         </div>
-      );
-    }
-    return (
-      <button onClick={onStart}
-        className="w-full py-2 rounded-lg text-[11px] font-bold bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-95 transition-all"
-      >
-        🧽 Wash (${earnings})
-      </button>
-    );
-  }
+      )}
 
-  return (
-    <div ref={containerRef} className="relative w-full rounded-xl overflow-hidden" style={{ height: "100%", minHeight: 300 }}>
+      {/* Start button */}
+      {!active && cooldown <= 0 && (
+        <button onClick={onStart}
+          className="w-full py-2 rounded-lg text-[11px] font-bold bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-95 transition-all"
+        >
+          🧽 Wash (${earnings})
+        </button>
+      )}
+
+      {/* Active scrubbing canvas */}
+      {active && (
+        <div ref={containerRef} className="relative w-full rounded-xl overflow-hidden" style={{ height: "100%", minHeight: 300 }}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
@@ -374,12 +375,14 @@ export default function DayJob({ level, cooldown, onWork, onStart, active }: Day
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes djbubble {
           0% { transform: scale(1) translateY(0); opacity: 0.7; }
           100% { transform: scale(0.2) translateY(-40px); opacity: 0; }
         }
       `}</style>
+        </div>
+      )}
     </div>
   );
 }
