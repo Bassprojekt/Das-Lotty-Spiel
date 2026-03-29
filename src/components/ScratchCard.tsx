@@ -45,24 +45,26 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(2, 2);
 
-    // Dirt layer - brown/greasy like dirty dishes
-    ctx.fillStyle = "#8B7355";
+    // Silver scratch-off surface like real lottery ticket
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#c8c8c8");
+    g.addColorStop(0.25, "#d8d8d8");
+    g.addColorStop(0.5, "#b8b8b8");
+    g.addColorStop(0.75, "#d0d0d0");
+    g.addColorStop(1, "#c0c0c0");
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    // Greasy spots
-    for (let i = 0; i < 60; i++) {
-      ctx.beginPath();
-      ctx.arc(Math.random() * w, Math.random() * h, 5 + Math.random() * 15, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${90 + Math.random() * 40}, ${60 + Math.random() * 30}, ${20 + Math.random() * 20}, ${0.3 + Math.random() * 0.3})`;
-      ctx.fill();
-    }
+    // Shimmer line
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(w * 0.4, 0); ctx.lineTo(0, h * 0.3); ctx.closePath();
+    ctx.fill();
 
-    // Stuck food bits
-    for (let i = 0; i < 20; i++) {
-      ctx.beginPath();
-      ctx.arc(Math.random() * w, Math.random() * h, 3 + Math.random() * 6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(60, 40, 15, ${0.4 + Math.random() * 0.4})`;
-      ctx.fill();
+    // Fine scratch texture
+    for (let i = 0; i < 100; i++) {
+      ctx.fillStyle = `rgba(${170 + Math.random() * 50}, ${170 + Math.random() * 50}, ${170 + Math.random() * 50}, 0.2)`;
+      ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1);
     }
 
     // Grid lines (faint)
@@ -72,10 +74,10 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     for (let i = 1; i < rows; i++) { const y = (i / rows) * h; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
     // Text
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillStyle = "rgba(100,100,100,0.4)";
     ctx.font = "bold 12px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("🪙 Mit 1 Cent rubbeln", w / 2, h / 2 + 5);
+    ctx.fillText("🪙 Hier rubbeln", w / 2, h / 2 + 5);
 
     // Init pixel tracking
     const zw = w / cols;
@@ -148,13 +150,13 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       }
     }
 
-    // Spawn bubbles
-    if (Math.random() < 0.4) {
+    // Spawn silver dust particles
+    if (Math.random() < 0.3) {
       const id = ++bubbleIdRef.current;
       const bx = x + (Math.random() - 0.5) * r * 2;
       const by = y + (Math.random() - 0.5) * r * 2;
-      setBubbles((prev) => [...prev.slice(-20), { id, x: bx, y: by, size: 4 + Math.random() * 10 }]);
-      setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 800);
+      setBubbles((prev) => [...prev.slice(-15), { id, x: bx, y: by, size: 3 + Math.random() * 6 }]);
+      setTimeout(() => setBubbles((prev) => prev.filter((b) => b.id !== id)), 600);
     }
   }
 
@@ -291,13 +293,13 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         </div>
       )}
 
-      {/* Soap bubbles */}
+      {/* Silver dust particles */}
       {bubbles.map((b) => (
         <div key={b.id} style={{
           position: "absolute", left: b.x - b.size / 2, top: b.y - b.size / 2,
           width: b.size, height: b.size, borderRadius: "50%",
-          background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.4)",
-          pointerEvents: "none", animation: "bubbleFloat 0.7s ease-out forwards",
+          background: "rgba(200,200,200,0.6)",
+          pointerEvents: "none", animation: "dustFloat 0.5s ease-out forwards",
         }} />
       ))}
 
@@ -347,9 +349,9 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       )}
 
       <style>{`
-        @keyframes bubbleFloat {
+        @keyframes dustFloat {
           0% { transform: scale(1) translateY(0); opacity: 0.7; }
-          100% { transform: scale(0.2) translateY(-50px); opacity: 0; }
+          100% { transform: scale(0.3) translateY(-20px); opacity: 0; }
         }
       `}</style>
     </div>
