@@ -139,7 +139,7 @@ export default function Game() {
 
       {/* TOP BAR */}
       <header className="relative z-40 border-b-2 border-amber-900/50" style={{ background: "linear-gradient(180deg,#2a1f15,#1f160d)" }}>
-        <div className="max-w-7xl mx-auto px-3 py-2 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 py-1.5 flex items-center justify-between">
           <div className="flex items-center gap-3"><span className="text-2xl">🎰</span><h1 className="text-base font-black font-mono text-amber-400">LUCKY SCRATCH</h1></div>
           <div className="flex items-center gap-4">
             {gs.autoScratcherUnlocked && <button onClick={() => setGs((p) => ({ ...p, autoScratcherActive: !p.autoScratcherActive }))} className={`px-2 py-1 rounded text-xs font-bold border ${gs.autoScratcherActive ? "bg-emerald-800 border-emerald-500 text-emerald-300" : "bg-neutral-800 border-neutral-600 text-neutral-400"}`}>🤖 {gs.autoScratcherActive ? "ON" : "OFF"}</button>}
@@ -149,7 +149,7 @@ export default function Game() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-3 flex gap-3 flex-1" style={{ minHeight: "calc(100vh - 132px)" }}>
+      <div className="max-w-7xl mx-auto p-3 flex gap-3 flex-1" style={{ maxHeight: "calc(100vh - 100px)", minHeight: 0 }}>
 
         {/* LEFT: SHOP */}
         <div className="w-52 flex-shrink-0 flex flex-col gap-2">
@@ -272,23 +272,22 @@ export default function Game() {
         )}
       </div>
 
-      {/* MÜLL-EIMER - am unteren Rand der Seite */}
+      {/* MÜLL-EIMER - sichtbar am unteren Rand */}
       <div style={{
         width: "100%",
-        height: 80,
+        height: 60,
         background: "#dc2626",
-        borderTop: "4px solid #fca5a5",
+        borderTop: "3px solid #fca5a5",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 12,
+        gap: 10,
         cursor: "pointer",
         boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
-        position: "relative",
-        zIndex: 99999,
+        flexShrink: 0,
       }}>
-        <span style={{ fontSize: 48 }}>🗑️</span>
-        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 20, letterSpacing: 4 }}>HIER HINZIEHEN ZUM WEGWERFEN</span>
+        <span style={{ fontSize: 36 }}>🗑️</span>
+        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 16, letterSpacing: 3 }}>MÜLL-EIMER</span>
       </div>
 
       {/* OVERLAYS */}
