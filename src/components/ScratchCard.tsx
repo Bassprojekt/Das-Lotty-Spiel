@@ -109,19 +109,11 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
 
     const r = SCRUB_RADIUS;
 
-    // "Wash" away the dirt
+    // Scratch hole
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-
-    // Scrub marks
-    for (let a = 0; a < Math.PI * 2; a += 0.5) {
-      const er = r + (Math.random() - 0.5) * 4;
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(a) * er, y + Math.sin(a) * er, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.globalCompositeOperation = "source-over";
 
     // Track pixels
@@ -146,16 +138,6 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
           }
         }
       }
-    }
-
-    // Draw silver dust on canvas
-    if (Math.random() < 0.3) {
-      ctx.fillStyle = "rgba(200,200,200,0.4)";
-      const dx = x + (Math.random() - 0.5) * r * 2;
-      const dy = y + (Math.random() - 0.5) * r * 2;
-      ctx.beginPath();
-      ctx.arc(dx, dy, 1 + Math.random() * 3, 0, Math.PI * 2);
-      ctx.fill();
     }
   }
 
