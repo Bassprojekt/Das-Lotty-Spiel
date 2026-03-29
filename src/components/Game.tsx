@@ -134,7 +134,7 @@ export default function Game() {
   const rDone = dc.filter((d) => d.slot === "robot_done");
 
   return (
-    <div className="min-h-screen text-white overflow-hidden relative"
+    <div className="min-h-screen text-white relative flex flex-col"
       style={{ background: "radial-gradient(ellipse at 50% 80%,#3d2b1f,transparent 70%),linear-gradient(180deg,#1a1208,#2d1f12 30%,#3d2b1f 60%,#2a1f15)" }}>
 
       {/* TOP BAR */}
@@ -149,7 +149,7 @@ export default function Game() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-3 flex gap-3" style={{ height: "calc(100vh - 52px)" }}>
+      <div className="max-w-7xl mx-auto p-3 flex gap-3 flex-1" style={{ minHeight: "calc(100vh - 132px)" }}>
 
         {/* LEFT: SHOP */}
         <div className="w-52 flex-shrink-0 flex flex-col gap-2">
@@ -190,7 +190,7 @@ export default function Game() {
                   <div className="text-base font-bold mb-1" style={{ color: activeCT.colorFrom }}>{activeCT.icon} {activeCT.name}</div>
                   {!activeCard.revealed && <div className="text-xs text-neutral-400">Rub each zone until it reveals! Right-click to peek.</div>}
                 </div>
-                <ScratchCard card={activeCard} cardType={activeCT} isActive={true} scratchPower={gs.scratchPower}
+                <ScratchCard key={activeCard.id} card={activeCard} cardType={activeCT} isActive={true} scratchPower={gs.scratchPower}
                   onScratch={scratch} onPeek={peek} onDiscard={trashCard} onReveal={reveal} onSelect={() => {}} />
                 {activeCard.revealed && (
                   <div className="flex gap-3 animate-slide-down">
@@ -272,28 +272,23 @@ export default function Game() {
         )}
       </div>
 
-      {/* MÜLL-EIMER - GANZ EINFACH */}
+      {/* MÜLL-EIMER - am unteren Rand der Seite */}
       <div style={{
-        position: "fixed",
-        bottom: 0,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 999999,
-        width: 120,
-        height: 100,
+        width: "100%",
+        height: 80,
         background: "#dc2626",
         borderTop: "4px solid #fca5a5",
-        borderRadius: "12px 12px 0 0",
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 12,
         cursor: "pointer",
         boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
-        gap: 4,
+        position: "relative",
+        zIndex: 99999,
       }}>
-        <span style={{ fontSize: 40 }}>🗑️</span>
-        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 14, letterSpacing: 3 }}>TRASH</span>
+        <span style={{ fontSize: 48 }}>🗑️</span>
+        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 20, letterSpacing: 4 }}>HIER HINZIEHEN ZUM WEGWERFEN</span>
       </div>
 
       {/* OVERLAYS */}
