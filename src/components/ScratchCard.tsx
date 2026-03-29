@@ -154,9 +154,9 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       return next;
     });
 
-    // Reveal when threshold reached
+    // Reveal when threshold reached - defer to avoid setState-in-render
     if (pct >= THRESHOLD) {
-      onScratch(card.id, zi);
+      queueMicrotask(() => onScratch(card.id, zi));
     }
   }
 
