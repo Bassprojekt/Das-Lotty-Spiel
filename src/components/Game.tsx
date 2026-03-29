@@ -31,6 +31,7 @@ export default function Game() {
   const [showU, setShowU] = useState(false);
   const [selCat, setSelCat] = useState(0);
   const [wash, setWash] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [dc, setDc] = useState<DC[]>([]);
   const di = useRef(0);
   const deskRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,7 @@ export default function Game() {
 
   // Drag
   const onDrag = useCallback((cardId: string, x: number, y: number) => {
-    // Clamp to desk boundaries - card must stay on the desk
+    // Clamp to desk boundaries
     const desk = deskRef.current;
     const CARD_W = 110;
     const CARD_H = 140;
@@ -91,6 +92,11 @@ export default function Game() {
       const dh = desk.clientHeight;
       cx = Math.max(0, Math.min(dw - CARD_W, x));
       cy = Math.max(0, Math.min(dh - CARD_H, y));
+
+      // Check if near trash can for lid animation
+      const tcx = dw / 2, tcy = dh - 50;
+      const nearTrash = Math.hypot(cx + 55 - tcx, cy + 70 - tcy) < 80;
+      setTrashOpen(nearTrash);
     }
     setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, x: cx, y: cy } : c)));
   }, []);
@@ -98,10 +104,10 @@ export default function Game() {
 
   // Drag end - check if dropped on trash can
   const onDragEnd = useCallback((cardId: string, x: number, y: number) => {
+    setTrashOpen(false);
     const el = deskRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    // Trash can is at bottom center
     const tcx = r.width / 2, tcy = r.height - 50;
     if (Math.hypot(x + 55 - tcx, y + 70 - tcy) < 60) {
       setDc((d) => d.filter((c) => c.cardId !== cardId));
@@ -228,31 +234,41 @@ export default function Game() {
                 boxShadow: "inset 0 0 30px rgba(0,0,0,0.4), 0 4px 15px rgba(0,0,0,0.3)",
                 background: `
                   repeating-linear-gradient(
-                    90deg,
+                    0deg,
                     transparent 0px,
-                    transparent 3px,
-                    rgba(139,90,43,0.15) 3px,
-                    rgba(139,90,43,0.15) 4px
+                    transparent 58px,
+                    rgba(80,50,20,0.3) 58px,
+                    rgba(80,50,20,0.3) 60px
                   ),
                   repeating-linear-gradient(
                     90deg,
                     transparent 0px,
-                    transparent 20px,
-                    rgba(101,67,33,0.1) 20px,
-                    rgba(101,67,33,0.1) 21px
+                    transparent 120px,
+                    rgba(60,40,15,0.2) 120px,
+                    rgba(60,40,15,0.2) 122px
+                  ),
+                  repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    transparent 8px,
+                    rgba(120,80,30,0.06) 8px,
+                    rgba(120,80,30,0.06) 9px
                   ),
                   linear-gradient(180deg,
-                    #8B6914 0%,
-                    #7a5c12 10%,
-                    #6b4f10 20%,
-                    #7a5c12 30%,
-                    #8B6914 40%,
-                    #7a5c12 50%,
-                    #6b4f10 60%,
-                    #7a5c12 70%,
-                    #8B6914 80%,
-                    #7a5c12 90%,
-                    #6b4f10 100%
+                    #c49a3c 0%,
+                    #b8892f 8%,
+                    #d4a843 16%,
+                    #c49a3c 24%,
+                    #b08025 32%,
+                    #c49a3c 40%,
+                    #d4a843 48%,
+                    #b8892f 56%,
+                    #c49a3c 64%,
+                    #d4a843 72%,
+                    #b08025 80%,
+                    #c49a3c 88%,
+                    #b8892f 96%,
+                    #d4a843 100%
                   )
                 `,
               }}>
@@ -282,18 +298,18 @@ export default function Game() {
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-50"
                 style={{ transformOrigin: "bottom center" }}>
                 <div className="relative flex flex-col items-center">
-                  {/* Eimerkörper */}
-                  <div className="relative" style={{ width: 80, height: 90 }}>
-                    {/* Deckel - animiert */}
-                    <div className="absolute -top-2 left-0 right-0 h-5 rounded-t-lg transition-transform duration-300 origin-bottom"
+                  <div className="relative" style={{ width: 80, height: 80 }}>
+                    {/* Deckel - animiert öffnen/schließen */}
+                    <div className="absolute -top-2 left-0 right-0 h-5 rounded-t-lg"
                       style={{
                         background: "linear-gradient(180deg, #f87171, #ef4444)",
                         border: "2px solid #fca5a5",
                         borderBottom: "none",
-                        transform: "rotateX(0deg)",
+                        transform: trashOpen ? "perspective(100px) rotateX(-45deg)" : "perspective(100px) rotateX(0deg)",
+                        transformOrigin: "bottom center",
+                        transition: "transform 0.3s ease",
                         zIndex: 2,
                       }}>
-                      {/* Griff */}
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full" style={{ background: "#fecaca" }} />
                     </div>
                     {/* Körper */}
@@ -302,19 +318,16 @@ export default function Game() {
                         background: "linear-gradient(180deg, #ef4444, #dc2626, #b91c1c)",
                         border: "2px solid #fca5a5",
                         borderTop: "1px solid rgba(0,0,0,0.2)",
-                        boxShadow: "0 4px 15px rgba(0,0,0,0.4)",
+                        boxShadow: trashOpen ? "0 4px 25px rgba(239,68,68,0.5)" : "0 4px 15px rgba(0,0,0,0.4)",
+                        transition: "box-shadow 0.3s",
                       }}>
                       {/* Streifen */}
                       <div className="absolute top-3 left-0 right-0 flex justify-center gap-3">
-                        {[0, 1, 2].map((i) => <div key={i} className="w-1.5 h-12 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />)}
+                        {[0, 1, 2].map((i) => <div key={i} className="w-1.5 h-10 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />)}
                       </div>
-                      {/* Emoji */}
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 8 }}>
-                        <span style={{ fontSize: 28, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }}>🗑️</span>
-                      </div>
+                      {/* Leer - kein Emoji */}
                     </div>
                   </div>
-                  {/* Label */}
                   <div className="text-[10px] text-red-400 font-black tracking-wider mt-0.5">MÜLL</div>
                 </div>
               </div>
