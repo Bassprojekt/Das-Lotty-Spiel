@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { ScratchCard as SC, CardType } from "@/lib/types";
 import { SYMBOLS } from "@/lib/gameData";
 
@@ -13,25 +13,34 @@ interface Props {
   onSelect: (cid: string) => void;
 }
 
-export default function ScratchCard({ card, cardType, isActive, scratchPower, onScratch, onPeek, onDiscard, onReveal, onSelect }: Props) {
+// Isolated canvas component
+function ScratchCanvas({
+  card, cardType, cols, rows, scratchPower, THRESHOLD,
+  onZonePct, onZoneReveal, mousePos, dragging, onScratch, onPeek,
+}: {
+  card: SC; cardType: CardType; cols: number; rows: number;
+  scratchPower: number; THRESHOLD: number;
+  onZonePct: (pcts: number[]) => void;
+  onZoneReveal: (cid: string, zi: number) => void;
+  mousePos: { x: number; y: number };
+  dragging: boolean;
+  onScratch: (cid: string, zi: number) => void;
+  onPeek: (cid: string, zi: number) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [zonePct, setZonePct] = useState<number[]>(() => new Array(cardType.zones).fill(0));
   const pixelSetsRef = useRef<Set<string>[]>([]);
   const zoneSizeRef = useRef<number[]>([]);
+  const cardIdRef = useRef<string>("");
 
-  const cols = Math.ceil(Math.sqrt(cardType.zones));
-  const rows = Math.ceil(cardType.zones / cols);
-  const SCRUB_RADIUS = 16 + scratchPower * 3;
-  const THRESHOLD = 70;
-
-  function initCanvas() {
+  // Init canvas
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || card.revealed) return;
+    if (cardIdRef.current === card.id) return;
+    cardIdRef.current = card.id;
+
     const parent = canvas.parentElement;
     if (!parent) return;
-
     const w = parent.clientWidth;
     const h = parent.clientHeight;
     canvas.width = w * 2;
@@ -43,29 +52,17 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(2, 2);
 
-    // Silver scratch-off surface like real lottery ticket
+    // Silver surface
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#c8c8c8");
-    g.addColorStop(0.25, "#d8d8d8");
-    g.addColorStop(0.5, "#b8b8b8");
-    g.addColorStop(0.75, "#d0d0d0");
-    g.addColorStop(1, "#c0c0c0");
+    g.addColorStop(0, "#c8c8c8"); g.addColorStop(0.25, "#d8d8d8"); g.addColorStop(0.5, "#b8b8b8"); g.addColorStop(0.75, "#d0d0d0"); g.addColorStop(1, "#c0c0c0");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    // Shimmer line
+    // Shimmer
     ctx.fillStyle = "rgba(255,255,255,0.15)";
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(w * 0.4, 0); ctx.lineTo(0, h * 0.3); ctx.closePath();
-    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w * 0.4, 0); ctx.lineTo(0, h * 0.3); ctx.closePath(); ctx.fill();
 
-    // Fine scratch texture
-    for (let i = 0; i < 100; i++) {
-      ctx.fillStyle = `rgba(${170 + Math.random() * 50}, ${170 + Math.random() * 50}, ${170 + Math.random() * 50}, 0.2)`;
-      ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1);
-    }
-
-    // Grid lines (faint)
+    // Grid
     ctx.strokeStyle = "rgba(0,0,0,0.1)";
     ctx.lineWidth = 1;
     for (let i = 1; i < cols; i++) { const x = (i / cols) * w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
@@ -75,52 +72,42 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     ctx.fillStyle = "rgba(100,100,100,0.4)";
     ctx.font = "bold 12px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("🪙 Hier rubbeln", w / 2, h / 2 + 5);
+    ctx.fillText("Hier rubbeln", w / 2, h / 2 + 5);
 
     // Init pixel tracking
-    const zw = w / cols;
-    const zh = h / rows;
+    const zw = w / cols; const zh = h / rows;
     pixelSetsRef.current = [];
     zoneSizeRef.current = [];
     for (let z = 0; z < cardType.zones; z++) {
       pixelSetsRef.current.push(new Set());
       zoneSizeRef.current.push(Math.floor((zw * zh) / 9));
     }
-    setZonePct(new Array(cardType.zones).fill(0));
-  }
+    onZonePct(new Array(cardType.zones).fill(0));
+  }, [card.id, card.revealed, cardType.zones, cols, rows, onZonePct]);
 
-  // Init on mount
+  // Scratch when dragging
   useEffect(() => {
-    const timer = setTimeout(initCanvas, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function getZone(x: number, y: number, w: number, h: number) {
-    return Math.min(Math.floor(y / (h / rows)) * cols + Math.floor(x / (w / cols)), cardType.zones - 1);
-  }
-
-  function scrub(x: number, y: number) {
+    if (!dragging || card.revealed) return;
     const canvas = canvasRef.current;
-    if (!canvas || card.revealed) return;
+    if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const r = SCRUB_RADIUS;
+    const x = mousePos.x;
+    const y = mousePos.y;
+    const r = 16 + scratchPower * 3;
 
-    // Scratch hole
     ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = "source-over";
 
     // Track pixels
-    const zi = getZone(x, y, rect.width, rect.height);
+    const cols2 = cols; const rows2 = rows;
+    const zi = Math.min(Math.floor(y / (rect.height / rows2)) * cols2 + Math.floor(x / (rect.width / cols2)), cardType.zones - 1);
     if (zi >= 0 && zi < cardType.zones) {
       const zone = card.zones[zi];
-      if (!zone.symbols.every((s) => s.scratched)) {
+      if (zone && !zone.symbols.every((s) => s.scratched)) {
         const pxSet = pixelSetsRef.current[zi];
         if (pxSet) {
           for (let dx = -r; dx <= r; dx += 3) {
@@ -132,42 +119,58 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
           }
           const total = zoneSizeRef.current[zi] || 1;
           const pct = Math.min(100, (pxSet.size / total) * 100);
-          setZonePct((prev) => { const n = [...prev]; n[zi] = pct; return n; });
+          onZonePct([...pixelSetsRef.current.map((s, i) => {
+            const t = zoneSizeRef.current[i] || 1;
+            return Math.min(100, (s.size / t) * 100);
+          })]);
           if (pct >= THRESHOLD) {
-            queueMicrotask(() => onScratch(card.id, zi));
+            onZoneReveal(card.id, zi);
           }
         }
       }
     }
-  }
+  }, [dragging, mousePos, card, cardType.zones, cols, rows, scratchPower, THRESHOLD, onZonePct, onZoneReveal]);
+
+  if (card.revealed) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: "absolute", inset: 0, cursor: "none", touchAction: "none" }}
+      onContextMenu={(e) => e.preventDefault()}
+    />
+  );
+}
+
+export default function ScratchCard({ card, cardType, isActive, scratchPower, onScratch, onPeek, onDiscard, onReveal, onSelect }: Props) {
+  const [dragging, setDragging] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [zonePct, setZonePct] = useState<number[]>(() => new Array(cardType.zones).fill(0));
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const cols = Math.ceil(Math.sqrt(cardType.zones));
+  const rows = Math.ceil(cardType.zones / cols);
+  const THRESHOLD = 70;
+
+  const handleZoneReveal = useCallback((cid: string, zi: number) => {
+    queueMicrotask(() => onScratch(cid, zi));
+  }, [onScratch]);
 
   function onDown(e: React.PointerEvent) {
     if (card.revealed || card.discarded || !isActive) return;
     e.preventDefault(); e.stopPropagation();
     setDragging(true);
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setMousePos({ x, y });
-    scrub(x, y);
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
   function onMove(e: React.PointerEvent) {
-    if (!dragging || card.revealed || !isActive) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setMousePos({ x, y });
-    scrub(x, y);
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    if (!dragging || card.revealed || !isActive) return;
   }
 
   function onUp() { setDragging(false); }
-
-  function onMouseMove(e: React.PointerEvent) {
-    if (!isActive || card.revealed) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
 
   if (card.discarded) {
     return <div style={{ width: 320, height: 320, background: "#222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.4, border: "2px solid #555" }}>
@@ -176,11 +179,16 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
   }
 
   return (
-    <div style={{ position: "relative", width: 320, height: 320, borderRadius: 12, overflow: "hidden", border: isActive ? "3px solid rgba(255,255,255,0.3)" : "2px solid #555", userSelect: "none", background: "#111", cursor: "none" }}
+    <div
+      ref={containerRef}
+      style={{ position: "relative", width: 320, height: 320, borderRadius: 12, overflow: "hidden", border: isActive ? "3px solid rgba(255,255,255,0.3)" : "2px solid #555", userSelect: "none", background: "#111", cursor: "none" }}
       onClick={() => { if (!isActive) onSelect(card.id); }}
-      onPointerMove={onMouseMove} onPointerLeave={() => setDragging(false)}>
-
-      {/* Symbol grid - progressively visible */}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerLeave={onUp}
+    >
+      {/* Symbol grid */}
       <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 2, padding: 4 }}>
         {card.zones.map((zone, zi) => {
           const pct = zonePct[zi] ?? 0;
@@ -216,67 +224,30 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         })}
       </div>
 
-      {/* Dirt layer on top */}
+      {/* Isolated canvas */}
       {!card.revealed && (
-        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, cursor: "none", touchAction: "none" }}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
-          onContextMenu={(e) => e.preventDefault()} />
+        <ScratchCanvas
+          card={card} cardType={cardType} cols={cols} rows={rows}
+          scratchPower={scratchPower} THRESHOLD={THRESHOLD}
+          onZonePct={setZonePct} onZoneReveal={handleZoneReveal}
+          mousePos={mousePos} dragging={dragging}
+          onScratch={onScratch} onPeek={onPeek}
+        />
       )}
 
-      {/* 1-Cent Coin cursor */}
+      {/* Coin cursor */}
       {isActive && !card.revealed && (
-        <div style={{
-          position: "absolute",
-          left: mousePos.x,
-          top: mousePos.y,
-          transform: `translate(-50%, -50%) ${dragging ? "scale(0.9) rotate(-10deg)" : "scale(1)"}`,
-          pointerEvents: "none",
-          zIndex: 20,
-          transition: "transform 0.1s",
-        }}>
-          {/* Coin body */}
+        <div style={{ position: "absolute", left: mousePos.x, top: mousePos.y, transform: `translate(-50%, -50%) ${dragging ? "scale(0.9) rotate(-10deg)" : "scale(1)"}`, pointerEvents: "none", zIndex: 20, transition: "transform 0.1s" }}>
           <div style={{
-            width: 34,
-            height: 34,
-            borderRadius: "50%",
-            background: dragging
-              ? "radial-gradient(circle at 35% 35%, #e0b84a, #c9a84c, #8B6914)"
-              : "radial-gradient(circle at 35% 35%, #c9a84c, #a07828, #7a5c12)",
+            width: 34, height: 34, borderRadius: "50%",
+            background: dragging ? "radial-gradient(circle at 35% 35%, #e0b84a, #c9a84c, #8B6914)" : "radial-gradient(circle at 35% 35%, #c9a84c, #a07828, #7a5c12)",
             border: "2px solid #d4a843",
-            boxShadow: dragging
-              ? "0 0 15px rgba(201,168,76,0.6), 0 3px 8px rgba(0,0,0,0.4)"
-              : "0 2px 6px rgba(0,0,0,0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-            overflow: "hidden",
+            boxShadow: dragging ? "0 0 15px rgba(201,168,76,0.6), 0 3px 8px rgba(0,0,0,0.4)" : "0 2px 6px rgba(0,0,0,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden",
           }}>
-            {/* Inner ring */}
-            <div style={{
-              position: "absolute",
-              inset: 3,
-              borderRadius: "50%",
-              border: "1px solid rgba(90,62,27,0.3)",
-            }} />
-            {/* 1¢ text */}
-            <span style={{
-              fontSize: 11,
-              fontWeight: 900,
-              color: "#5a3e1b",
-              textShadow: "0 1px 0 rgba(255,255,255,0.3)",
-              zIndex: 1,
-            }}>1¢</span>
-            {/* Shine */}
-            <div style={{
-              position: "absolute",
-              top: 2,
-              left: 4,
-              width: 8,
-              height: 5,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.25)",
-            }} />
+            <div style={{ position: "absolute", inset: 3, borderRadius: "50%", border: "1px solid rgba(90,62,27,0.3)" }} />
+            <span style={{ fontSize: 11, fontWeight: 900, color: "#5a3e1b", textShadow: "0 1px 0 rgba(255,255,255,0.3)", zIndex: 1 }}>1¢</span>
+            <div style={{ position: "absolute", top: 2, left: 4, width: 8, height: 5, borderRadius: "50%", background: "rgba(255,255,255,0.25)" }} />
           </div>
         </div>
       )}
@@ -322,10 +293,9 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
 
       {!isActive && !card.revealed && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: 600 }}>Klicken zum Schrubben</span>
+          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: 600 }}>Klicken zum Rubbeln</span>
         </div>
       )}
-
     </div>
   );
 }
