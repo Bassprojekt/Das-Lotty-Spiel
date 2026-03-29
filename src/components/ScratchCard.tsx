@@ -131,7 +131,16 @@ function ScratchCanvas({
     }
   }, [dragging, mousePos, card, cardType.zones, cols, rows, scratchPower, THRESHOLD, onZonePct, onZoneReveal]);
 
-  if (card.revealed) return null;
+  // Clear canvas when revealed but keep element mounted
+  useEffect(() => {
+    if (card.revealed) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+      }
+    }
+  }, [card.revealed]);
 
   return (
     <canvas
