@@ -163,6 +163,12 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
 
   function onUp() { setDragging(false); }
 
+  function onMouseMove(e: React.PointerEvent) {
+    if (!isActive || card.revealed) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
   if (card.discarded) {
     return <div style={{ width: 320, height: 320, background: "#222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.4, border: "2px solid #555" }}>
       <div style={{ textAlign: "center" }}><div style={{ fontSize: 32 }}>🗑️</div><div style={{ color: "#f87171", fontSize: 12 }}>Weggeworfen</div></div>
@@ -171,7 +177,8 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
 
   return (
     <div style={{ position: "relative", width: 320, height: 320, borderRadius: 12, overflow: "hidden", border: isActive ? "3px solid rgba(255,255,255,0.3)" : "2px solid #555", userSelect: "none", background: "#111", cursor: "none" }}
-      onClick={() => { if (!isActive) onSelect(card.id); }}>
+      onClick={() => { if (!isActive) onSelect(card.id); }}
+      onPointerMove={onMouseMove} onPointerLeave={() => setDragging(false)}>
 
       {/* Symbol grid - progressively visible */}
       <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 2, padding: 4 }}>
