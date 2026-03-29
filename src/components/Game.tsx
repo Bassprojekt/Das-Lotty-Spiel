@@ -149,7 +149,7 @@ export default function Game() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-3 flex gap-3" style={{ height: "calc(100vh - 104px)" }}>
+      <div className="max-w-7xl mx-auto p-3 flex gap-3" style={{ height: "calc(100vh - 52px)" }}>
 
         {/* LEFT: SHOP */}
         <div className="w-52 flex-shrink-0 flex flex-col gap-2">
@@ -169,6 +169,23 @@ export default function Game() {
           <div className="bg-blue-950/40 border border-blue-800/30 rounded-lg p-2">
             <div className="text-[10px] font-bold text-blue-400 mb-1 uppercase">Sink</div>
             <DayJob level={gs.dayJobLevel} cooldown={gs.dayJobCooldown} onWork={dayJob} onStart={() => setWash(true)} active={false} />
+          </div>
+
+          {/* MÜLL-EIMER */}
+          <div style={{
+            background: "#dc2626",
+            borderTop: "3px solid #fca5a5",
+            borderRadius: "0 0 8px 8px",
+            padding: "12px 8px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+          }}>
+            <span style={{ fontSize: 32 }}>🗑️</span>
+            <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 12, letterSpacing: 2 }}>MÜLL-EIMER</span>
           </div>
         </div>
 
@@ -270,27 +287,6 @@ export default function Game() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* MÜLL-EIMER - fest am unteren Bildschirmrand */}
-      <div style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 60,
-        background: "#dc2626",
-        borderTop: "3px solid #fca5a5",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        cursor: "pointer",
-        boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
-        zIndex: 99999,
-      }}>
-        <span style={{ fontSize: 36 }}>🗑️</span>
-        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 16, letterSpacing: 3 }}>MÜLL-EIMER</span>
       </div>
 
       {/* OVERLAYS */}
