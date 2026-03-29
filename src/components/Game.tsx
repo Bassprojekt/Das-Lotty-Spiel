@@ -79,7 +79,21 @@ export default function Game() {
   }, []);
 
   // Drag
-  const onDrag = useCallback((cardId: string, x: number, y: number) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, x, y } : c))), []);
+  const onDrag = useCallback((cardId: string, x: number, y: number) => {
+    // Clamp to desk boundaries - card must stay on the desk
+    const desk = deskRef.current;
+    const CARD_W = 110;
+    const CARD_H = 140;
+    let cx = x;
+    let cy = y;
+    if (desk) {
+      const dw = desk.clientWidth;
+      const dh = desk.clientHeight;
+      cx = Math.max(0, Math.min(dw - CARD_W, x));
+      cy = Math.max(0, Math.min(dh - CARD_H, y));
+    }
+    setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, x: cx, y: cy } : c)));
+  }, []);
   const onFront = useCallback((cardId: string) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, z: ++nz } : c))), []);
 
   // Drag end - check if dropped on trash can
