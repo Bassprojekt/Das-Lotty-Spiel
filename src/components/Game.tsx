@@ -134,7 +134,7 @@ export default function Game() {
   const rDone = dc.filter((d) => d.slot === "robot_done");
 
   return (
-    <div className="min-h-screen text-white relative flex flex-col"
+    <div className="min-h-screen text-white relative"
       style={{ background: "radial-gradient(ellipse at 50% 80%,#3d2b1f,transparent 70%),linear-gradient(180deg,#1a1208,#2d1f12 30%,#3d2b1f 60%,#2a1f15)" }}>
 
       {/* TOP BAR */}
@@ -149,7 +149,7 @@ export default function Game() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-3 flex gap-3 flex-1" style={{ maxHeight: "calc(100vh - 100px)", minHeight: 0 }}>
+      <div className="max-w-7xl mx-auto p-3 flex gap-3" style={{ height: "calc(100vh - 104px)" }}>
 
         {/* LEFT: SHOP */}
         <div className="w-52 flex-shrink-0 flex flex-col gap-2">
@@ -272,9 +272,12 @@ export default function Game() {
         )}
       </div>
 
-      {/* MÜLL-EIMER - sichtbar am unteren Rand */}
+      {/* MÜLL-EIMER - fest am unteren Bildschirmrand */}
       <div style={{
-        width: "100%",
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
         height: 60,
         background: "#dc2626",
         borderTop: "3px solid #fca5a5",
@@ -284,7 +287,7 @@ export default function Game() {
         gap: 10,
         cursor: "pointer",
         boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
-        flexShrink: 0,
+        zIndex: 99999,
       }}>
         <span style={{ fontSize: 36 }}>🗑️</span>
         <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 16, letterSpacing: 3 }}>MÜLL-EIMER</span>
