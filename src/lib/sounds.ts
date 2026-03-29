@@ -10,7 +10,21 @@ function getCtx(): AudioContext {
   if (!audioCtx) {
     audioCtx = new AudioContext();
   }
+  // Resume if suspended (browser autoplay policy)
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
   return audioCtx;
+}
+
+// Call this on first user interaction to unlock audio
+export function initAudio() {
+  try {
+    const ctx = getCtx();
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+  } catch {}
 }
 
 export function setMuted(m: boolean) { muted = m; }

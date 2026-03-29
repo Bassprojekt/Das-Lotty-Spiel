@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { GameState } from "@/lib/types";
-import { setMuted, isMuted } from "@/lib/sounds";
+import { setMuted, initAudio } from "@/lib/sounds";
 import {
   createInitialState, buyCard, buyCardBatch, unlockCardType,
   scratchZone, peekZone, discardCard, revealCard,
@@ -34,6 +34,13 @@ export default function Game() {
   const [wash, setWash] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [muted, setMutedState] = useState(false);
+
+  // Init audio on first click
+  useEffect(() => {
+    const handler = () => { initAudio(); window.removeEventListener("click", handler); };
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, []);
   const [dc, setDc] = useState<DC[]>([]);
   const di = useRef(0);
   const deskRef = useRef<HTMLDivElement>(null);
