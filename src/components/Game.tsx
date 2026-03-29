@@ -272,28 +272,28 @@ export default function Game() {
         )}
       </div>
 
-      {/* MÜLL-EIMER - FEST AM BILDSCHIRM UNTEN MITTE */}
-      <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[99999]" style={{ pointerEvents: "auto" }}>
-        <div className="flex flex-col items-center group cursor-pointer select-none"
-          onClick={() => { /* Trash is drop target */ }}>
-          {/* Glow */}
-          <div className="absolute -inset-8 rounded-full bg-red-600/20 group-hover:bg-red-500/40 transition-all blur-xl" />
-          {/* Can body */}
-          <div className="relative w-24 h-28 transition-transform group-hover:scale-110 group-hover:-translate-y-2"
-            style={{ filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.7))" }}>
-            <svg viewBox="0 0 100 120" className="w-full h-full">
-              <rect x="10" y="10" width="80" height="12" rx="4" fill="#ef4444" stroke="#fca5a5" strokeWidth="2" />
-              <rect x="35" y="2" width="30" height="10" rx="5" fill="#fecaca" stroke="#fca5a5" strokeWidth="1" />
-              <rect x="25" y="16" width="50" height="4" rx="2" fill="#1f2937" />
-              <rect x="15" y="22" width="70" height="90" rx="6" fill="url(#tg)" stroke="#fca5a5" strokeWidth="2" />
-              <rect x="30" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-              <rect x="47" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-              <rect x="64" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-              <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" /><stop offset="100%" stopColor="#b91c1c" /></linearGradient></defs>
-            </svg>
-          </div>
-          <div className="text-xs text-red-400 font-black tracking-[0.2em] mt-1 group-hover:text-red-300">TRASH</div>
-        </div>
+      {/* MÜLL-EIMER - GANZ EINFACH */}
+      <div style={{
+        position: "fixed",
+        bottom: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 999999,
+        width: 120,
+        height: 100,
+        background: "#dc2626",
+        borderTop: "4px solid #fca5a5",
+        borderRadius: "12px 12px 0 0",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
+        gap: 4,
+      }}>
+        <span style={{ fontSize: 40 }}>🗑️</span>
+        <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 14, letterSpacing: 3 }}>TRASH</span>
       </div>
 
       {/* OVERLAYS */}

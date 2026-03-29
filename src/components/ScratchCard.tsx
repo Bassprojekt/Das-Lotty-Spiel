@@ -18,13 +18,17 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const [peeking, setPeeking] = useState(false);
+  const [zoneProgress, setZoneProgress] = useState<number[]>([]);
   const initRef = useRef(false);
   const cardIdRef = useRef<string | null>(null);
-  const pixelsRef = useRef<Set<string>[]>([]);
-  const zoneSizesRef = useRef<number[]>([]);
+  // Time spent scratching each zone (in ms)
+  const zoneTimeRef = useRef<number[]>([]);
+  const lastTimeRef = useRef(0);
+  const lastZoneRef = useRef(-1);
 
   const cols = Math.ceil(Math.sqrt(cardType.zones));
   const rows = Math.ceil(cardType.zones / cols);
+  const SCRATCH_TIME_NEEDED = 1800; // 1.8 seconds per zone
 
   // Init canvas
   useEffect(() => {
@@ -63,26 +67,19 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     ctx.fillRect(0, 0, rect.width, rect.height * 0.25);
 
     // Grid
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1.5;
     for (let i = 1; i < cols; i++) { const x = (i / cols) * rect.width; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rect.height); ctx.stroke(); }
     for (let i = 1; i < rows; i++) { const y = (i / rows) * rect.height; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rect.width, y); ctx.stroke(); }
 
     // Text
-    ctx.fillStyle = "rgba(100,100,100,0.4)";
-    ctx.font = "bold 13px sans-serif";
+    ctx.fillStyle = "rgba(80,80,80,0.5)";
+    ctx.font = "bold 14px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("SCRATCH HERE", rect.width / 2, rect.height / 2 + 5);
 
-    // Init pixel tracking
-    const zw = rect.width / cols;
-    const zh = rect.height / rows;
-    pixelsRef.current = [];
-    zoneSizesRef.current = [];
-    for (let z = 0; z < cardType.zones; z++) {
-      pixelsRef.current.push(new Set());
-      zoneSizesRef.current.push(Math.floor((zw * zh) / 4));
-    }
+    // Init zone timers
+    zoneTimeRef.current = new Array(cardType.zones).fill(0);
   }, [card.id, card.revealed, cardType, cols, rows]);
 
   const getZone = useCallback((x: number, y: number, w: number, h: number) => {
@@ -97,11 +94,11 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const r = 5 + scratchPower * 2; // Very small brush
+    const r = 6 + scratchPower * 2;
 
     if (peeking) {
       ctx.globalCompositeOperation = "destination-out";
-      ctx.globalAlpha = 0.1;
+      ctx.globalAlpha = 0.08;
       ctx.beginPath(); ctx.arc(x, y, r * 0.3, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
       const zi = getZone(x, y, rect.width, rect.height);
@@ -109,41 +106,43 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       return;
     }
 
-    // Draw scratch
+    // Draw scratch hole
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = "source-over";
 
-    // Track pixels
+    // Track time per zone
+    const now = Date.now();
     const zi = getZone(x, y, rect.width, rect.height);
-    if (zi < 0 || zi >= card.zones.length) return;
-    const zone = card.zones[zi];
-    if (zone.symbols.every((s) => s.scratched)) return;
 
-    const px = pixelsRef.current[zi];
-    if (!px) return;
-
-    // Add pixels in scratch circle
-    for (let dx = -r; dx <= r; dx += 2) {
-      for (let dy = -r; dy <= r; dy += 2) {
-        if (dx * dx + dy * dy <= r * r) {
-          px.add(Math.floor(x + dx) + "," + Math.floor(y + dy));
+    if (zi >= 0 && zi < card.zones.length) {
+      const zone = card.zones[zi];
+      if (!zone.symbols.every((s) => s.scratched)) {
+        // Add elapsed time since last frame to this zone
+        if (lastTimeRef.current > 0 && lastZoneRef.current === zi) {
+          const elapsed = now - lastTimeRef.current;
+          zoneTimeRef.current[zi] = (zoneTimeRef.current[zi] ?? 0) + elapsed;
         }
+
+        // Check if enough time spent on this zone
+        if ((zoneTimeRef.current[zi] ?? 0) >= SCRATCH_TIME_NEEDED) {
+          onScratch(card.id, zi);
+        }
+
+        // Update progress state for rendering
+        setZoneProgress([...zoneTimeRef.current]);
       }
     }
 
-    // Check coverage - require 80%
-    const total = zoneSizesRef.current[zi] || 1;
-    const pct = (px.size / total) * 100;
-    if (pct >= 80) {
-      onScratch(card.id, zi);
-    }
+    lastTimeRef.current = now;
+    lastZoneRef.current = zi;
   }, [card, scratchPower, peeking, getZone, onScratch, onPeek]);
 
   const onDown = useCallback((e: React.PointerEvent) => {
     if (card.revealed || card.discarded || !isActive) return;
     e.preventDefault(); e.stopPropagation();
     setDragging(true); setPeeking(e.button === 2 || e.shiftKey);
+    lastTimeRef.current = Date.now();
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     doScratch(e.clientX - r.left, e.clientY - r.top);
   }, [card, isActive, doScratch]);
@@ -154,65 +153,92 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     doScratch(e.clientX - r.left, e.clientY - r.top);
   }, [dragging, card, isActive, doScratch]);
 
-  const onUp = useCallback(() => { setDragging(false); setPeeking(false); }, []);
+  const onUp = useCallback(() => {
+    setDragging(false);
+    setPeeking(false);
+    lastTimeRef.current = 0;
+    lastZoneRef.current = -1;
+  }, []);
 
   if (card.discarded) {
-    return <div className="rounded-xl border-2 border-red-500/30 bg-neutral-900/50 opacity-40 flex items-center justify-center" style={{ width: 280, height: 280 }}><div className="text-center"><span className="text-3xl">🗑️</span><div className="text-xs text-red-400">Discarded</div></div></div>;
+    return <div style={{ width: 320, height: 320, display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 12, border: "2px solid #555", opacity: 0.4 }}>
+      <div style={{ textAlign: "center" }}><div style={{ fontSize: 32 }}>🗑️</div><div style={{ fontSize: 12, color: "#f87171" }}>Discarded</div></div>
+    </div>;
   }
 
   return (
-    <div ref={containerRef} className={`relative select-none rounded-xl overflow-hidden ${isActive ? "ring-2 ring-white/30 shadow-2xl" : "ring-1 ring-neutral-700/50"}`}
-      style={{ width: 320, height: 320, aspectRatio: "1/1" }}
+    <div ref={containerRef} style={{ position: "relative", width: 320, height: 320, borderRadius: 12, overflow: "hidden", border: isActive ? "2px solid rgba(255,255,255,0.3)" : "1px solid rgba(100,100,100,0.5)", userSelect: "none" }}
       onClick={() => !isActive && onSelect(card.id)}>
 
       {/* Symbol grid */}
-      <div className="absolute inset-0 grid gap-0.5 p-1 bg-neutral-900" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: `repeat(${rows},1fr)` }}>
-        {card.zones.map((zone, zi) => (
-          <div key={zi} className={`flex items-center justify-center rounded-sm transition-all duration-300 ${
-            zone.symbols.some((s) => SYMBOLS[s.symbolId]?.isTrap && s.scratched) ? "bg-red-900/60" :
-            zone.symbols.every((s) => s.scratched) ? "bg-neutral-800/80" : "bg-neutral-900"}`}>
-            <span className={`transition-all duration-300 ${zone.symbols.some((s) => s.scratched) ? "opacity-100 scale-100" : "opacity-0 scale-50"}`}
-              style={{ fontSize: Math.min(40, 200 / cols) + "px" }}>
-              {zone.symbols.map((s, si) => <span key={si}>{SYMBOLS[s.symbolId]?.emoji ?? "?"}</span>)}
-            </span>
-          </div>
-        ))}
+      <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 2, padding: 4, background: "#111" }}>
+        {card.zones.map((zone, zi) => {
+          const timeOnZone = zoneProgress[zi] ?? 0;
+          const progress = Math.min(100, (timeOnZone / SCRATCH_TIME_NEEDED) * 100);
+          return (
+            <div key={zi} style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: zone.symbols.some((s) => SYMBOLS[s.symbolId]?.isTrap && s.scratched) ? "rgba(153,27,27,0.6)" :
+                zone.symbols.every((s) => s.scratched) ? "rgba(38,38,38,0.8)" : "#111",
+              borderRadius: 4, position: "relative", transition: "background 0.3s",
+            }}>
+              <span style={{
+                fontSize: Math.min(40, 200 / cols),
+                opacity: zone.symbols.some((s) => s.scratched) ? 1 : 0,
+                transform: zone.symbols.some((s) => s.scratched) ? "scale(1)" : "scale(0.5)",
+                transition: "all 0.3s",
+              }}>
+                {zone.symbols.map((s, si) => <span key={si}>{SYMBOLS[s.symbolId]?.emoji ?? "?"}</span>)}
+              </span>
+              {/* Progress bar for zone being scratched */}
+              {dragging && !zone.symbols.every((s) => s.scratched) && progress > 0 && progress < 100 && (
+                <div style={{ position: "absolute", bottom: 2, left: 4, right: 4, height: 3, background: "rgba(0,0,0,0.5)", borderRadius: 2 }}>
+                  <div style={{ height: "100%", width: progress + "%", background: "#22c55e", borderRadius: 2, transition: "width 0.1s" }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Scratch canvas */}
       {!card.revealed && (
-        <canvas ref={canvasRef} className="absolute inset-0 cursor-crosshair" style={{ touchAction: "none" }}
+        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, cursor: "crosshair", touchAction: "none" }}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
           onContextMenu={(e) => e.preventDefault()} />
       )}
 
       {/* Result */}
       {card.revealed && card.prize > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`animate-bounce-in bg-black/80 backdrop-blur-sm rounded-xl px-6 py-3 border-2 ${card.prize >= (cardType.basePrize ?? 1) * 3 ? "border-yellow-400 shadow-[0_0_50px_rgba(250,204,21,0.6)]" : "border-green-400"}`}>
-            <span className={`font-bold ${card.prize >= (cardType.basePrize ?? 1) * 3 ? "text-yellow-400 text-xl" : "text-green-400 text-base"}`}>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ background: "rgba(0,0,0,0.8)", borderRadius: 12, padding: "12px 24px", border: `2px solid ${card.prize >= (cardType.basePrize ?? 1) * 3 ? "#facc15" : "#4ade80"}`, boxShadow: card.prize >= (cardType.basePrize ?? 1) * 3 ? "0 0 50px rgba(250,204,21,0.6)" : "none" }}>
+            <span style={{ fontWeight: "bold", fontSize: card.prize >= (cardType.basePrize ?? 1) * 3 ? 20 : 16, color: card.prize >= (cardType.basePrize ?? 1) * 3 ? "#facc15" : "#4ade80" }}>
               {card.prize >= (cardType.basePrize ?? 1) * 3 ? "🎰 " : "WIN: "}${card.prize.toLocaleString()}
             </span>
           </div>
         </div>
       )}
       {card.revealed && card.prize <= 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm rounded-xl px-4 py-2 border border-red-400/50">
-            <span className="text-red-400 text-sm font-semibold">{card.trapTriggered ? "💀 Trap!" : "❌ No Match"}{card.prize < 0 && ` -$${Math.abs(card.prize).toLocaleString()}`}</span>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ background: "rgba(0,0,0,0.7)", borderRadius: 12, padding: "10px 20px", border: "1px solid rgba(248,113,113,0.5)" }}>
+            <span style={{ color: "#f87171", fontSize: 14, fontWeight: 600 }}>
+              {card.trapTriggered ? "💀 Trap!" : "❌ No Match"}{card.prize < 0 ? ` -$${Math.abs(card.prize).toLocaleString()}` : ""}
+            </span>
           </div>
         </div>
       )}
 
       {/* Buttons */}
       {!card.revealed && isActive && <>
-        <button onClick={(e) => { e.stopPropagation(); onDiscard(card.id); }} className="absolute bottom-2 right-2 z-10 bg-red-600/80 hover:bg-red-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all">🗑️</button>
-        <button onClick={(e) => { e.stopPropagation(); onReveal(card.id); }} className="absolute bottom-2 left-2 z-10 bg-neutral-600/80 hover:bg-neutral-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all">👁️</button>
+        <button onClick={(e) => { e.stopPropagation(); onDiscard(card.id); }}
+          style={{ position: "absolute", bottom: 8, right: 8, zIndex: 10, background: "rgba(220,38,38,0.8)", color: "white", fontSize: 12, padding: "6px 12px", borderRadius: 8, fontWeight: 600, border: "none", cursor: "pointer" }}>🗑️</button>
+        <button onClick={(e) => { e.stopPropagation(); onReveal(card.id); }}
+          style={{ position: "absolute", bottom: 8, left: 8, zIndex: 10, background: "rgba(100,100,100,0.8)", color: "white", fontSize: 12, padding: "6px 12px", borderRadius: 8, fontWeight: 600, border: "none", cursor: "pointer" }}>👁️</button>
       </>}
 
       {!isActive && !card.revealed && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer hover:bg-black/20 transition-all">
-          <span className="text-white/60 text-sm">Click to scratch</span>
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 12 }}>
+          <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Click to scratch</span>
         </div>
       )}
     </div>
