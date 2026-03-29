@@ -174,45 +174,6 @@ export default function Game() {
 
         {/* CENTER */}
         <div className="flex-1 relative">
-          {/* TRASH CAN - FIXED, ALWAYS VISIBLE */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-[9999] pointer-events-auto">
-            <div className="flex flex-col items-center group cursor-pointer"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); const cid = e.dataTransfer.getData("text/plain"); if (cid) trashCard(cid); }}>
-              <div className="relative">
-                <div className="absolute -inset-6 rounded-full bg-red-500/0 group-hover:bg-red-500/30 transition-all duration-300 blur-xl" />
-                <div className="w-28 h-32 relative transition-transform group-hover:scale-110 group-hover:-translate-y-1" style={{
-                  filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.6))",
-                }}>
-                  {/* SVG Trash Can */}
-                  <svg viewBox="0 0 100 120" className="w-full h-full">
-                    {/* Lid */}
-                    <rect x="10" y="10" width="80" height="12" rx="4" fill="#ef4444" stroke="#fca5a5" strokeWidth="2" />
-                    {/* Handle */}
-                    <rect x="35" y="2" width="30" height="10" rx="5" fill="#fecaca" stroke="#fca5a5" strokeWidth="1" />
-                    {/* Lid slot */}
-                    <rect x="25" y="16" width="50" height="4" rx="2" fill="#1f2937" />
-                    {/* Body */}
-                    <rect x="15" y="22" width="70" height="90" rx="6" fill="url(#canGrad)" stroke="#fca5a5" strokeWidth="2" />
-                    {/* Stripes */}
-                    <rect x="30" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-                    <rect x="47" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-                    <rect x="64" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
-                    <defs>
-                      <linearGradient id="canGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" />
-                        <stop offset="50%" stopColor="#dc2626" />
-                        <stop offset="100%" stopColor="#b91c1c" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </div>
-                <div className="text-sm text-red-400 font-black tracking-[0.15em] text-center mt-1 group-hover:text-red-300 transition-colors">🗑️ TRASH</div>
-              </div>
-            </div>
-          </div>
-
-          {/* WASHING MODE */}
           {wash ? (
             <div className="w-full h-full flex flex-col items-center justify-center">
               <div className="text-center mb-3"><div className="text-lg font-bold text-blue-300">🧽 Dishwashing</div></div>
@@ -309,6 +270,30 @@ export default function Game() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* MÜLL-EIMER - FEST AM BILDSCHIRM UNTEN MITTE */}
+      <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[99999]" style={{ pointerEvents: "auto" }}>
+        <div className="flex flex-col items-center group cursor-pointer select-none"
+          onClick={() => { /* Trash is drop target */ }}>
+          {/* Glow */}
+          <div className="absolute -inset-8 rounded-full bg-red-600/20 group-hover:bg-red-500/40 transition-all blur-xl" />
+          {/* Can body */}
+          <div className="relative w-24 h-28 transition-transform group-hover:scale-110 group-hover:-translate-y-2"
+            style={{ filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.7))" }}>
+            <svg viewBox="0 0 100 120" className="w-full h-full">
+              <rect x="10" y="10" width="80" height="12" rx="4" fill="#ef4444" stroke="#fca5a5" strokeWidth="2" />
+              <rect x="35" y="2" width="30" height="10" rx="5" fill="#fecaca" stroke="#fca5a5" strokeWidth="1" />
+              <rect x="25" y="16" width="50" height="4" rx="2" fill="#1f2937" />
+              <rect x="15" y="22" width="70" height="90" rx="6" fill="url(#tg)" stroke="#fca5a5" strokeWidth="2" />
+              <rect x="30" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
+              <rect x="47" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
+              <rect x="64" y="30" width="6" height="70" rx="3" fill="rgba(255,255,255,0.12)" />
+              <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" /><stop offset="100%" stopColor="#b91c1c" /></linearGradient></defs>
+            </svg>
+          </div>
+          <div className="text-xs text-red-400 font-black tracking-[0.2em] mt-1 group-hover:text-red-300">TRASH</div>
+        </div>
       </div>
 
       {/* OVERLAYS */}
