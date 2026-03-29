@@ -75,7 +75,7 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
     ctx.fillStyle = "rgba(255,255,255,0.2)";
     ctx.font = "bold 12px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("🧽 Schrubben!", w / 2, h / 2 + 5);
+    ctx.fillText("🪙 Mit 1 Cent rubbeln", w / 2, h / 2 + 5);
 
     // Init pixel tracking
     const zw = w / cols;
@@ -233,20 +233,60 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
           onContextMenu={(e) => e.preventDefault()} />
       )}
 
-      {/* Sponge cursor */}
-      {dragging && isActive && !card.revealed && (
-        <div style={{ position: "absolute", left: mousePos.x, top: mousePos.y, transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 20 }}>
+      {/* 1-Cent Coin cursor */}
+      {isActive && !card.revealed && (
+        <div style={{
+          position: "absolute",
+          left: mousePos.x,
+          top: mousePos.y,
+          transform: `translate(-50%, -50%) ${dragging ? "scale(0.9) rotate(-10deg)" : "scale(1)"}`,
+          pointerEvents: "none",
+          zIndex: 20,
+          transition: "transform 0.1s",
+        }}>
+          {/* Coin body */}
           <div style={{
-            width: 36, height: 26, borderRadius: 6,
-            background: "linear-gradient(135deg, #fde047, #facc15, #eab308)",
-            border: "2px solid #f59e0b",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-            transform: "scale(0.9)",
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            background: dragging
+              ? "radial-gradient(circle at 35% 35%, #e0b84a, #c9a84c, #8B6914)"
+              : "radial-gradient(circle at 35% 35%, #c9a84c, #a07828, #7a5c12)",
+            border: "2px solid #d4a843",
+            boxShadow: dragging
+              ? "0 0 15px rgba(201,168,76,0.6), 0 3px 8px rgba(0,0,0,0.4)"
+              : "0 2px 6px rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             position: "relative",
+            overflow: "hidden",
           }}>
-            <div style={{ position: "absolute", top: 3, left: 3, width: 4, height: 3, borderRadius: "50%", background: "rgba(234,179,8,0.4)" }} />
-            <div style={{ position: "absolute", top: 5, right: 4, width: 3, height: 4, borderRadius: "50%", background: "rgba(234,179,8,0.3)" }} />
-            <div style={{ position: "absolute", bottom: 3, left: 5, width: 5, height: 3, borderRadius: "50%", background: "rgba(234,179,8,0.35)" }} />
+            {/* Inner ring */}
+            <div style={{
+              position: "absolute",
+              inset: 3,
+              borderRadius: "50%",
+              border: "1px solid rgba(90,62,27,0.3)",
+            }} />
+            {/* 1¢ text */}
+            <span style={{
+              fontSize: 11,
+              fontWeight: 900,
+              color: "#5a3e1b",
+              textShadow: "0 1px 0 rgba(255,255,255,0.3)",
+              zIndex: 1,
+            }}>1¢</span>
+            {/* Shine */}
+            <div style={{
+              position: "absolute",
+              top: 2,
+              left: 4,
+              width: 8,
+              height: 5,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.25)",
+            }} />
           </div>
         </div>
       )}
@@ -264,8 +304,8 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       {/* Instruction */}
       {!dragging && isActive && !card.revealed && (
         <div style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,0.6)", borderRadius: 12, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4, pointerEvents: "none", zIndex: 10 }}>
-          <span style={{ fontSize: 16 }}>🧽</span>
-          <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: "bold" }}>Schrubben!</span>
+          <span style={{ fontSize: 14 }}>🪙</span>
+          <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: "bold" }}>Rubbeln!</span>
         </div>
       )}
 
