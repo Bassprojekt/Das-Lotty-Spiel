@@ -162,7 +162,7 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
   const rows = Math.ceil(cardType.zones / cols);
   const THRESHOLD = 70;
 
-  // Play sound when card is revealed
+  // Play sound when card is revealed AND stop scratch sound
   useEffect(() => {
     if (card.revealed) {
       stopScratchSound();
@@ -177,6 +177,11 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
       }
     }
   }, [card.revealed]);
+
+  // Stop scratch sound on unmount
+  useEffect(() => {
+    return () => { stopScratchSound(); };
+  }, []);
 
   const handleZoneReveal = useCallback((cid: string, zi: number) => {
     queueMicrotask(() => onScratch(cid, zi));

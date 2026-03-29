@@ -72,15 +72,18 @@ export function stopScratchSound() {
   if (!isScratchPlaying) return;
   isScratchPlaying = false;
   try {
+    // Immediately mute
     if (scratchGain) {
-      scratchGain.gain.linearRampToValueAtTime(0, getCtx().currentTime + 0.1);
+      scratchGain.gain.cancelScheduledValues(audioCtx?.currentTime ?? 0);
+      scratchGain.gain.setValueAtTime(0, audioCtx?.currentTime ?? 0);
+      scratchGain.disconnect();
     }
-    setTimeout(() => {
-      try { scratchOsc?.stop(); } catch {}
-      scratchOsc = null;
-      scratchGain = null;
-    }, 150);
+    if (scratchOsc) {
+      try { scratchOsc.stop(); } catch {}
+    }
   } catch {}
+  scratchOsc = null;
+  scratchGain = null;
 }
 
 // Dishwashing squeak sound
