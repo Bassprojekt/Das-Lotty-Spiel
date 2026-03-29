@@ -149,7 +149,7 @@ export default function Game() {
 
   return (
     <div className="min-h-screen text-white relative"
-      style={{ background: "radial-gradient(ellipse at 50% 80%,#3d2b1f,transparent 70%),linear-gradient(180deg,#1a1208,#2d1f12 30%,#3d2b1f 60%,#2a1f15)" }}>
+      style={{ background: "#1a1a1a" }}>
 
       {/* TOP BAR */}
       <header className="relative z-40 border-b-2 border-amber-900/50" style={{ background: "linear-gradient(180deg,#2a1f15,#1f160d)" }}>
@@ -239,11 +239,40 @@ export default function Game() {
             </div>
           ) : (
             /* DESK */
-            <div ref={deskRef} data-desk="true" className="w-full h-full relative rounded-xl border border-amber-900/30"
-              style={{ background: "linear-gradient(135deg,#2d1f12,#3d2b1f 50%,#2a1f15)" }}>
-              {/* Texture */}
-              <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(139,90,43,0.3) 40px,rgba(139,90,43,0.3) 41px)" }} />
-
+            <div ref={deskRef} data-desk="true" className="w-full h-full relative rounded-xl overflow-hidden"
+              style={{
+                border: "3px solid #6b4226",
+                boxShadow: "inset 0 0 30px rgba(0,0,0,0.4), 0 4px 15px rgba(0,0,0,0.3)",
+                background: `
+                  repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    transparent 3px,
+                    rgba(139,90,43,0.15) 3px,
+                    rgba(139,90,43,0.15) 4px
+                  ),
+                  repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    transparent 20px,
+                    rgba(101,67,33,0.1) 20px,
+                    rgba(101,67,33,0.1) 21px
+                  ),
+                  linear-gradient(180deg,
+                    #8B6914 0%,
+                    #7a5c12 10%,
+                    #6b4f10 20%,
+                    #7a5c12 30%,
+                    #8B6914 40%,
+                    #7a5c12 50%,
+                    #6b4f10 60%,
+                    #7a5c12 70%,
+                    #8B6914 80%,
+                    #7a5c12 90%,
+                    #6b4f10 100%
+                  )
+                `,
+              }}>
               {/* Fan */}
               {gs.upgrades.find((u) => u.id === "fan" && u.purchased) && <FanGadget onFanAll={fanAll} cardCount={deskOnly.length} />}
 
