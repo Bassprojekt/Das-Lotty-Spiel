@@ -101,9 +101,9 @@ export default function Game() {
     const el = deskRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    // Trash can is at bottom center, approximately (width/2, height-60)
-    const tcx = r.width / 2, tcy = r.height - 60;
-    if (Math.hypot(x + 55 - tcx, y + 70 - tcy) < 100) {
+    // Trash can is at bottom center
+    const tcx = r.width / 2, tcy = r.height - 50;
+    if (Math.hypot(x + 55 - tcx, y + 70 - tcy) < 60) {
       setDc((d) => d.filter((c) => c.cardId !== cardId));
       setGs((p) => discardCard(p, cardId));
     }
@@ -183,23 +183,6 @@ export default function Game() {
           <div className="bg-blue-950/40 border border-blue-800/30 rounded-lg p-2">
             <div className="text-[10px] font-bold text-blue-400 mb-1 uppercase">Sink</div>
             <DayJob level={gs.dayJobLevel} cooldown={gs.dayJobCooldown} onWork={dayJob} onStart={() => setWash(true)} active={false} />
-          </div>
-
-          {/* MÜLL-EIMER */}
-          <div style={{
-            background: "#dc2626",
-            borderTop: "3px solid #fca5a5",
-            borderRadius: "0 0 8px 8px",
-            padding: "12px 8px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 4,
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-          }}>
-            <span style={{ fontSize: 32 }}>🗑️</span>
-            <span style={{ color: "#fecaca", fontWeight: 900, fontSize: 12, letterSpacing: 2 }}>MÜLL-EIMER</span>
           </div>
         </div>
 
@@ -294,6 +277,47 @@ export default function Game() {
                   onOpen={openCard} onTrash={trashCard} onSendRobot={sendRobot}
                   onDrag={onDrag} onDragEnd={onDragEnd} onBringFront={onFront} showRobot={gs.autoScratcherUnlocked} />;
               })}
+
+              {/* MÜLL-EIMER - unten am Tisch */}
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-50"
+                style={{ transformOrigin: "bottom center" }}>
+                <div className="relative flex flex-col items-center">
+                  {/* Eimerkörper */}
+                  <div className="relative" style={{ width: 80, height: 90 }}>
+                    {/* Deckel - animiert */}
+                    <div className="absolute -top-2 left-0 right-0 h-5 rounded-t-lg transition-transform duration-300 origin-bottom"
+                      style={{
+                        background: "linear-gradient(180deg, #f87171, #ef4444)",
+                        border: "2px solid #fca5a5",
+                        borderBottom: "none",
+                        transform: "rotateX(0deg)",
+                        zIndex: 2,
+                      }}>
+                      {/* Griff */}
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full" style={{ background: "#fecaca" }} />
+                    </div>
+                    {/* Körper */}
+                    <div className="absolute top-3 left-0 right-0 bottom-0 rounded-b-lg"
+                      style={{
+                        background: "linear-gradient(180deg, #ef4444, #dc2626, #b91c1c)",
+                        border: "2px solid #fca5a5",
+                        borderTop: "1px solid rgba(0,0,0,0.2)",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.4)",
+                      }}>
+                      {/* Streifen */}
+                      <div className="absolute top-3 left-0 right-0 flex justify-center gap-3">
+                        {[0, 1, 2].map((i) => <div key={i} className="w-1.5 h-12 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />)}
+                      </div>
+                      {/* Emoji */}
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 8 }}>
+                        <span style={{ fontSize: 28, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }}>🗑️</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Label */}
+                  <div className="text-[10px] text-red-400 font-black tracking-wider mt-0.5">MÜLL</div>
+                </div>
+              </div>
             </div>
           )}
         </div>
