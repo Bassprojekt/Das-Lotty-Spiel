@@ -284,7 +284,7 @@ export default function Game() {
                 </div>
               )}
 
-              {/* Desk cards */}
+              {/* Desk cards - stacked in pile */}
               {deskOnly.map((d) => {
                 const card = gs.cards.find((c) => c.id === d.cardId);
                 if (!card) return null;
@@ -293,6 +293,13 @@ export default function Game() {
                   onOpen={openCard} onTrash={trashCard} onSendRobot={sendRobot}
                   onDrag={onDrag} onDragEnd={onDragEnd} onBringFront={onFront} showRobot={gs.autoScratcherUnlocked} />;
               })}
+
+              {/* Card pile counter */}
+              {deskOnly.length > 1 && (
+                <div className="absolute top-3 right-3 z-40 bg-neutral-800/90 border border-neutral-600 rounded-lg px-3 py-1.5 pointer-events-none">
+                  <div className="text-xs text-neutral-300 font-bold">🎫 {deskOnly.length} cards</div>
+                </div>
+              )}
 
               {/* MÜLL-EIMER - unten am Tisch */}
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-50"
