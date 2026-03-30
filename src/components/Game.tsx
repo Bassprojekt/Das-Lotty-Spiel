@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { GameState } from "@/lib/types";
-import { setMuted, initAudio, playPhoneRing } from "@/lib/sounds";
+import { setMuted, initAudio, playPhoneRing, playSqueakSound, playCoinSound } from "@/lib/sounds";
 import {
   createInitialState, buyCard, buyCardBatch, unlockCardType,
   scratchZone, peekZone, discardCard, revealCard,
@@ -484,33 +484,94 @@ export default function Game() {
   );
 }
 
-// Wash mini-game component
+// Wash mini-game component - plate with dirt and sponge
 function WashGame({ progress, onComplete, onCancel }: { progress: number; onComplete: (pct: number) => void; onCancel: () => void }) {
   const [clean, setClean] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initRef = useRef(false);
+  const plateCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
+
+    // Draw clean plate underneath (this stays visible as you scrub)
+    const plateCanvas = plateCanvasRef.current;
+    if (plateCanvas) {
+      plateCanvas.width = 300;
+      plateCanvas.height = 300;
+      const pctx = plateCanvas.getContext("2d");
+      if (pctx) {
+        const cx = 150, cy = 150, r = 130;
+        // Plate body
+        const grad = pctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+        grad.addColorStop(0, "#faf5eb");
+        grad.addColorStop(0.6, "#e8dfd0");
+        grad.addColorStop(0.85, "#ddd3c0");
+        grad.addColorStop(1, "#c8bda5");
+        pctx.beginPath();
+        pctx.arc(cx, cy, r, 0, Math.PI * 2);
+        pctx.fillStyle = grad;
+        pctx.fill();
+        // Rim
+        pctx.beginPath();
+        pctx.arc(cx, cy, r, 0, Math.PI * 2);
+        pctx.strokeStyle = "#b8a88a";
+        pctx.lineWidth = 3;
+        pctx.stroke();
+        // Inner circle
+        pctx.beginPath();
+        pctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
+        pctx.strokeStyle = "rgba(180,165,140,0.4)";
+        pctx.lineWidth = 1;
+        pctx.stroke();
+        // Decorative dots
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          pctx.beginPath();
+          pctx.arc(cx + Math.cos(a) * r * 0.86, cy + Math.sin(a) * r * 0.86, 3, 0, Math.PI * 2);
+          pctx.fillStyle = "rgba(180,165,140,0.3)";
+          pctx.fill();
+        }
+      }
+    }
+
+    // Draw dirt layer on top (this gets scrubbed away)
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = 400;
-    canvas.height = 200;
+    canvas.width = 300;
+    canvas.height = 300;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // Circular clip for plate shape
+    ctx.beginPath();
+    ctx.arc(150, 150, 130, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Brown dirt
     ctx.fillStyle = "#8B7355";
-    ctx.fillRect(0, 0, 400, 200);
-    for (let i = 0; i < 60; i++) {
+    ctx.fillRect(0, 0, 300, 300);
+
+    // Greasy spots
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 110;
       ctx.beginPath();
-      ctx.arc(Math.random() * 400, Math.random() * 200, 5 + Math.random() * 15, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(90,60,20,${0.3 + Math.random() * 0.3})`;
+      ctx.arc(150 + Math.cos(angle) * dist, 150 + Math.sin(angle) * dist, 5 + Math.random() * 12, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${90 + Math.random() * 40}, ${60 + Math.random() * 30}, ${20 + Math.random() * 20}, ${0.3 + Math.random() * 0.3})`;
       ctx.fill();
     }
-    for (let i = 0; i < 15; i++) {
+
+    // Food bits
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 100;
       ctx.beginPath();
-      ctx.arc(Math.random() * 400, Math.random() * 200, 3 + Math.random() * 6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(60,40,15,${0.4 + Math.random() * 0.4})`;
+      ctx.arc(150 + Math.cos(angle) * dist, 150 + Math.sin(angle) * dist, 3 + Math.random() * 5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(60, 40, 15, ${0.5 + Math.random() * 0.4})`;
       ctx.fill();
     }
   }, []);
@@ -519,32 +580,68 @@ function WashGame({ progress, onComplete, onCancel }: { progress: number; onComp
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (400 / rect.width);
-    const y = (e.clientY - rect.top) * (200 / rect.height);
+    const scaleX = 300 / rect.width;
+    const scaleY = 300 / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    ctx.arc(x, y, 25, 0, Math.PI * 2);
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = "source-over";
+
+    // Squeak sound randomly
+    if (Math.random() < 0.15) {
+      playSqueakSound();
+    }
+
     setClean((prev) => {
-      const next = Math.min(100, prev + 0.8);
+      const next = Math.min(100, prev + 0.5);
+      if (next >= 90) playCoinSound();
       onComplete(next);
       return next;
     });
   }, [onComplete]);
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="text-[10px] text-neutral-500">Scrub the plate!</div>
-      <canvas ref={canvasRef} className="rounded-xl cursor-crosshair border-2 border-neutral-600" style={{ width: 320, height: 160, touchAction: "none" }}
-        onPointerDown={(e) => { e.preventDefault(); handleScrub(e); }}
-        onPointerMove={(e) => { if (e.buttons > 0) handleScrub(e); }} />
-      <div className="w-48 h-2 bg-neutral-700 rounded-full overflow-hidden">
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: 260, height: 260, cursor: "none" }}
+        onPointerDown={(e) => { e.preventDefault(); setIsScrubbing(true); handleScrub(e); }}
+        onPointerMove={(e) => { if (isScrubbing) handleScrub(e); setMousePos({ x: e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left, y: e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top }); }}
+        onPointerUp={() => setIsScrubbing(false)}
+        onPointerLeave={() => setIsScrubbing(false)}>
+        {/* Clean plate underneath */}
+        <canvas ref={plateCanvasRef} className="absolute inset-0" style={{ width: 260, height: 260 }} />
+        {/* Dirt layer on top */}
+        <canvas ref={canvasRef} className="absolute inset-0" style={{ width: 260, height: 260, touchAction: "none" }} />
+        {/* Sponge cursor */}
+        <div style={{
+          position: "absolute", left: mousePos.x, top: mousePos.y,
+          transform: `translate(-50%, -50%) scale(${isScrubbing ? 0.9 : 1})`,
+          pointerEvents: "none", zIndex: 10, transition: "transform 0.05s",
+        }}>
+          <div style={{
+            width: 36, height: 26, borderRadius: 6,
+            background: "linear-gradient(135deg, #fde047, #facc15, #eab308)",
+            border: "2px solid #f59e0b",
+            boxShadow: isScrubbing ? "0 0 10px rgba(250,204,21,0.5)" : "0 2px 6px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ position: "absolute", top: 3, left: 3, width: 4, height: 3, borderRadius: "50%", background: "rgba(234,179,8,0.4)" }} />
+            <div style={{ position: "absolute", top: 5, right: 4, width: 3, height: 4, borderRadius: "50%", background: "rgba(234,179,8,0.3)" }} />
+            <div style={{ position: "absolute", bottom: 3, left: 5, width: 5, height: 3, borderRadius: "50%", background: "rgba(234,179,8,0.35)" }} />
+          </div>
+        </div>
+      </div>
+      <div className="w-52 h-2 bg-neutral-700 rounded-full overflow-hidden">
         <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${clean}%` }} />
       </div>
-      <button onClick={onCancel} className="text-[10px] text-neutral-500 hover:text-red-400">Cancel</button>
+      <button onClick={onCancel} className="text-[10px] text-neutral-500 hover:text-red-400 mt-1">Cancel</button>
     </div>
   );
 }
