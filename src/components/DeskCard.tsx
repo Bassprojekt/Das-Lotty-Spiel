@@ -3,6 +3,7 @@
 import { useRef, useCallback, useState, useEffect } from "react";
 import { ScratchCard, CardType } from "@/lib/types";
 import { SYMBOLS } from "@/lib/gameData";
+import { playCoinSound } from "@/lib/sounds";
 
 interface DeskCardProps {
   card: ScratchCard;
@@ -19,204 +20,136 @@ interface DeskCardProps {
   showRobot: boolean;
 }
 
-// Each card type has a unique lottery-style design
+// Card designs - each type looks different
 const CARD_DESIGNS: Record<string, {
-  bg: string;
-  border: string;
-  borderColor: string;
-  shape: "rect" | "rounded" | "ticket" | "oval" | "stubby";
-  accent: string;
-  pattern: string;
-  scratchColor: string;
+  bg: string; border: string; accent: string; textColor: string;
+  shape: string; pattern: string;
 }> = {
   two_win: {
-    bg: "linear-gradient(135deg, #1a5c2a, #0d3d1a)",
+    bg: "linear-gradient(145deg, #1a5c2a, #0d3d1a, #14532d)",
     border: "3px solid #c9a84c",
-    borderColor: "#c9a84c",
-    shape: "ticket",
-    accent: "#c9a84c",
-    pattern: "dots",
-    scratchColor: "#8b8680",
+    accent: "#c9a84c", textColor: "#fbbf24",
+    shape: "8px 20px 8px 20px", pattern: "dots",
   },
   mini_scratch: {
-    bg: "linear-gradient(135deg, #1e3a5f, #0f2440)",
+    bg: "linear-gradient(145deg, #1e3a5f, #0f2440, #172554)",
     border: "3px solid #7c3aed",
-    borderColor: "#7c3aed",
-    shape: "rect",
-    accent: "#a78bfa",
-    pattern: "diamonds",
-    scratchColor: "#9ca3af",
+    accent: "#a78bfa", textColor: "#c4b5fd",
+    shape: "6px", pattern: "diamonds",
   },
   apple_tree: {
-    bg: "linear-gradient(180deg, #4a7c59 0%, #2d5a3a 40%, #8B4513 40%, #6b3410 100%)",
+    bg: "linear-gradient(180deg, #4a7c59 0%, #2d5a3a 45%, #78350f 45%, #451a03 100%)",
     border: "3px solid #65a30d",
-    borderColor: "#65a30d",
-    shape: "rounded",
-    accent: "#84cc16",
-    pattern: "leaves",
-    scratchColor: "#a8a29e",
+    accent: "#84cc16", textColor: "#bef264",
+    shape: "12px", pattern: "leaves",
   },
   quick_cash: {
-    bg: "linear-gradient(135deg, #92400e, #78350f)",
+    bg: "linear-gradient(145deg, #92400e, #78350f, #451a03)",
     border: "3px solid #f59e0b",
-    borderColor: "#f59e0b",
-    shape: "rect",
-    accent: "#fbbf24",
-    pattern: "stars",
-    scratchColor: "#b8a88a",
+    accent: "#fbbf24", textColor: "#fde68a",
+    shape: "4px", pattern: "stars",
   },
   lucky_cat: {
-    bg: "linear-gradient(135deg, #7c1d1d, #991b1b)",
+    bg: "linear-gradient(145deg, #7c1d1d, #991b1b, #450a0a)",
     border: "3px solid #fbbf24",
-    borderColor: "#fbbf24",
-    shape: "oval",
-    accent: "#fcd34d",
-    pattern: "waves",
-    scratchColor: "#d4c5a9",
+    accent: "#fcd34d", textColor: "#fef08a",
+    shape: "50% / 30%", pattern: "waves",
   },
   final_chance_1: {
-    bg: "linear-gradient(135deg, #4c1d95, #581c87)",
+    bg: "linear-gradient(145deg, #4c1d95, #581c87, #2e1065)",
     border: "3px solid #a855f7",
-    borderColor: "#a855f7",
-    shape: "stubby",
-    accent: "#c084fc",
-    pattern: "skulls",
-    scratchColor: "#6b7280",
+    accent: "#c084fc", textColor: "#e9d5ff",
+    shape: "16px", pattern: "skulls",
   },
   sand_dollars: {
-    bg: "linear-gradient(180deg, #0ea5e9 0%, #0284c7 50%, #f5deb3 50%, #deb887 100%)",
+    bg: "linear-gradient(180deg, #0ea5e9 0%, #0284c7 50%, #d4a574 50%, #92400e 100%)",
     border: "3px solid #06b6d4",
-    borderColor: "#06b6d4",
-    shape: "ticket",
-    accent: "#67e8f9",
-    pattern: "waves",
-    scratchColor: "#93c5fd",
+    accent: "#67e8f9", textColor: "#cffafe",
+    shape: "8px 20px 8px 20px", pattern: "waves",
   },
   scratch_my_back: {
-    bg: "linear-gradient(135deg, #064e3b, #065f46)",
+    bg: "linear-gradient(145deg, #064e3b, #065f46, #022c22)",
     border: "3px solid #34d399",
-    borderColor: "#34d399",
-    shape: "rounded",
-    accent: "#6ee7b7",
-    pattern: "shells",
-    scratchColor: "#86efac",
+    accent: "#6ee7b7", textColor: "#a7f3d0",
+    shape: "14px", pattern: "shells",
   },
   snake_eyes: {
-    bg: "linear-gradient(135deg, #1c1917, #292524)",
+    bg: "linear-gradient(145deg, #1c1917, #292524, #0c0a09)",
     border: "3px solid #ef4444",
-    borderColor: "#ef4444",
-    shape: "rect",
-    accent: "#f87171",
-    pattern: "dice",
-    scratchColor: "#78716c",
+    accent: "#f87171", textColor: "#fca5a5",
+    shape: "4px", pattern: "dice",
   },
   the_bomb: {
-    bg: "linear-gradient(135deg, #7f1d1d, #991b1b)",
+    bg: "linear-gradient(145deg, #7f1d1d, #991b1b, #450a0a)",
     border: "3px solid #f97316",
-    borderColor: "#f97316",
-    shape: "stubby",
-    accent: "#fb923c",
-    pattern: "sparks",
-    scratchColor: "#a8a29e",
+    accent: "#fb923c", textColor: "#fed7aa",
+    shape: "16px", pattern: "sparks",
   },
   final_chance_2: {
-    bg: "linear-gradient(135deg, #4c1d95, #581c87)",
+    bg: "linear-gradient(145deg, #4c1d95, #581c87, #2e1065)",
     border: "3px solid #a855f7",
-    borderColor: "#a855f7",
-    shape: "stubby",
-    accent: "#c084fc",
-    pattern: "skulls",
-    scratchColor: "#6b7280",
+    accent: "#c084fc", textColor: "#e9d5ff",
+    shape: "16px", pattern: "skulls",
   },
   bank_break: {
-    bg: "linear-gradient(135deg, #3730a3, #4338ca)",
+    bg: "linear-gradient(145deg, #3730a3, #4338ca, #312e81)",
     border: "3px solid #818cf8",
-    borderColor: "#818cf8",
-    shape: "rect",
-    accent: "#a5b4fc",
-    pattern: "bills",
-    scratchColor: "#94a3b8",
+    accent: "#a5b4fc", textColor: "#c7d2fe",
+    shape: "4px", pattern: "bills",
   },
   xmas_countdown: {
-    bg: "linear-gradient(135deg, #166534, #15803d)",
+    bg: "linear-gradient(145deg, #166534, #15803d, #14532d)",
     border: "3px solid #dc2626",
-    borderColor: "#dc2626",
-    shape: "rounded",
-    accent: "#f87171",
-    pattern: "snowflakes",
-    scratchColor: "#d1d5db",
+    accent: "#f87171", textColor: "#fecaca",
+    shape: "12px", pattern: "snowflakes",
   },
   thrift_store: {
-    bg: "linear-gradient(135deg, #581c87, #6b21a8)",
+    bg: "linear-gradient(145deg, #581c87, #6b21a8, #3b0764)",
     border: "3px solid #e879f9",
-    borderColor: "#e879f9",
-    shape: "ticket",
-    accent: "#f0abfc",
-    pattern: "tags",
-    scratchColor: "#c4b5fd",
+    accent: "#f0abfc", textColor: "#f5d0fe",
+    shape: "8px 20px 8px 20px", pattern: "tags",
   },
   berry_picking: {
-    bg: "linear-gradient(135deg, #312e81, #3730a3)",
+    bg: "linear-gradient(145deg, #312e81, #3730a3, #1e1b4b)",
     border: "3px solid #6366f1",
-    borderColor: "#6366f1",
-    shape: "rounded",
-    accent: "#818cf8",
-    pattern: "berries",
-    scratchColor: "#a5b4fc",
+    accent: "#818cf8", textColor: "#a5b4fc",
+    shape: "14px", pattern: "berries",
   },
   final_chance_3: {
-    bg: "linear-gradient(135deg, #4c1d95, #581c87)",
+    bg: "linear-gradient(145deg, #4c1d95, #581c87, #2e1065)",
     border: "3px solid #a855f7",
-    borderColor: "#a855f7",
-    shape: "stubby",
-    accent: "#c084fc",
-    pattern: "skulls",
-    scratchColor: "#6b7280",
+    accent: "#c084fc", textColor: "#e9d5ff",
+    shape: "16px", pattern: "skulls",
   },
   trick_or_treat: {
-    bg: "linear-gradient(135deg, #c2410c, #9a3412)",
+    bg: "linear-gradient(145deg, #c2410c, #9a3412, #7c2d12)",
     border: "3px solid #f97316",
-    borderColor: "#f97316",
-    shape: "oval",
-    accent: "#fdba74",
-    pattern: "bats",
-    scratchColor: "#78716c",
+    accent: "#fdba74", textColor: "#fed7aa",
+    shape: "50% / 30%", pattern: "bats",
   },
   slot_machine: {
-    bg: "linear-gradient(135deg, #881337, #9f1239)",
+    bg: "linear-gradient(145deg, #881337, #9f1239, #4c0519)",
     border: "3px solid #fb7185",
-    borderColor: "#fb7185",
-    shape: "rect",
-    accent: "#fda4af",
-    pattern: "sevens",
-    scratchColor: "#9ca3af",
+    accent: "#fda4af", textColor: "#fecdd3",
+    shape: "4px", pattern: "sevens",
   },
   to_the_moon: {
-    bg: "linear-gradient(180deg, #0c0a2e 0%, #1e1b4b 50%, #312e81 100%)",
+    bg: "linear-gradient(180deg, #0c0a2e 0%, #1e1b4b 100%)",
     border: "3px solid #60a5fa",
-    borderColor: "#60a5fa",
-    shape: "rounded",
-    accent: "#93c5fd",
-    pattern: "stars",
-    scratchColor: "#475569",
+    accent: "#93c5fd", textColor: "#bfdbfe",
+    shape: "14px", pattern: "stars",
   },
   booster_pack: {
-    bg: "linear-gradient(135deg, #7c2d12, #9a3412)",
+    bg: "linear-gradient(145deg, #7c2d12, #9a3412, #431407)",
     border: "3px solid #fbbf24",
-    borderColor: "#fbbf24",
-    shape: "stubby",
-    accent: "#fcd34d",
-    pattern: "cards",
-    scratchColor: "#a8a29e",
+    accent: "#fcd34d", textColor: "#fef08a",
+    shape: "16px", pattern: "cards",
   },
   final_chance_4: {
-    bg: "linear-gradient(135deg, #4c1d95, #581c87)",
+    bg: "linear-gradient(145deg, #4c1d95, #581c87, #2e1065)",
     border: "3px solid #a855f7",
-    borderColor: "#a855f7",
-    shape: "stubby",
-    accent: "#c084fc",
-    pattern: "skulls",
-    scratchColor: "#6b7280",
+    accent: "#c084fc", textColor: "#e9d5ff",
+    shape: "16px", pattern: "skulls",
   },
 };
 
@@ -240,24 +173,22 @@ const PATTERNS: Record<string, string> = {
 };
 
 export default function DeskCard({
-  card,
-  cardType,
-  x,
-  y,
-  zIndex,
-  onOpen,
-  onTrash,
-  onSendRobot,
-  onDrag,
-  onDragEnd,
-  onBringFront,
-  showRobot,
+  card, cardType, x, y, zIndex,
+  onOpen, onTrash, onSendRobot,
+  onDrag, onDragEnd, onBringFront, showRobot,
 }: DeskCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [justPlaced, setJustPlaced] = useState(true);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  const design = CARD_DESIGNS[card.id.split("_")[0] + "_" + card.id.split("_")[1]] ?? CARD_DESIGNS[cardType.id] ?? CARD_DESIGNS.two_win;
+  const design = CARD_DESIGNS[cardType.id] ?? CARD_DESIGNS.two_win;
+
+  // Remove "just placed" animation after mount
+  useEffect(() => {
+    const timer = setTimeout(() => setJustPlaced(false), 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -269,6 +200,7 @@ export default function DeskCard({
       dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       setIsDragging(true);
       onBringFront(card.id);
+      playCoinSound();
     },
     [card.id, onBringFront]
   );
@@ -300,12 +232,8 @@ export default function DeskCard({
   const w = 110;
   const h = 140;
 
-  const borderRadius =
-    design.shape === "oval" ? "50% / 35%" :
-    design.shape === "ticket" ? "8px 24px 8px 24px" :
-    design.shape === "stubby" ? "12px" :
-    design.shape === "rounded" ? "20px" :
-    "6px";
+  // Win symbols for display
+  const winEmojis = cardType.winSymbols.slice(0, 4).map((id) => SYMBOLS[id]?.emoji ?? "?");
 
   return (
     <div
@@ -313,34 +241,39 @@ export default function DeskCard({
       className="absolute select-none"
       style={{
         left: x, top: y, zIndex,
-        width: design.shape === "oval" ? w + 10 : w,
-        height: design.shape === "oval" ? h - 10 : design.shape === "stubby" ? h - 15 : h,
+        width: w, height: h,
         cursor: isDragging ? "grabbing" : "grab",
-        transition: isDragging ? "none" : "left 0.6s ease-in, top 0.6s ease-in, transform 0.15s, box-shadow 0.15s",
-        transform: isDragging ? "scale(1.08) rotate(1deg)" : "scale(1)",
+        transition: isDragging ? "none" : "transform 0.15s, box-shadow 0.15s",
+        transform: isDragging
+          ? "scale(1.1) rotate(2deg)"
+          : justPlaced
+          ? "scale(0.5) translateY(-50px)"
+          : "scale(1)",
+        opacity: justPlaced ? 0 : 1,
+        animation: justPlaced ? "cardPlace 0.4s ease-out forwards" : undefined,
       }}
       onPointerDown={handlePointerDown}
-      onDoubleClick={(e) => { e.stopPropagation(); if (!card.revealed) onOpen(card.id); }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!card.revealed) { onOpen(card.id); playCoinSound(); } }}
     >
       {/* Card body */}
       <div
         className="relative w-full h-full overflow-hidden"
         style={{
-          borderRadius,
+          borderRadius: design.shape,
           border: design.border,
           boxShadow: isDragging
-            ? `0 15px 35px rgba(0,0,0,0.6), 0 0 25px ${design.accent}30`
+            ? `0 15px 35px rgba(0,0,0,0.6), 0 0 20px ${design.accent}30`
             : `0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)`,
           background: design.bg,
         }}
       >
         {/* Pattern overlay */}
-        <div className="absolute inset-0 opacity-40"
+        <div className="absolute inset-0 opacity-30"
           style={{ backgroundImage: PATTERNS[design.pattern], backgroundSize: "10px 10px" }} />
 
         {/* Glossy shine */}
         <div className="absolute inset-0"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.06) 100%)" }} />
+          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.05) 100%)" }} />
 
         {!card.revealed ? (
           /* UNREVEALED - Scratch ticket look */
@@ -352,45 +285,55 @@ export default function DeskCard({
               </div>
             </div>
 
-            {/* Center: Scratch area */}
+            {/* Center: Scratch area with coin hint */}
             <div className="flex-1 w-full flex items-center justify-center my-1">
               <div
-                className="w-full h-full rounded-md flex items-center justify-center relative"
+                className="w-full h-full rounded-md flex flex-col items-center justify-center relative"
                 style={{
-                  background: `linear-gradient(135deg, ${design.scratchColor}, ${design.scratchColor}dd)`,
+                  background: "linear-gradient(135deg, #c0c0c0, #d4d4d4, #b0b0b0)",
                   boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
-                  border: "1px solid rgba(255,255,255,0.15)",
+                  border: "1px solid rgba(255,255,255,0.2)",
                 }}
               >
                 {/* Scratch texture shimmer */}
-                <div className="absolute inset-0 rounded-md opacity-30"
+                <div className="absolute inset-0 rounded-md opacity-40"
                   style={{ background: "repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(255,255,255,0.15) 3px, rgba(255,255,255,0.15) 4px)" }} />
                 <div className="absolute inset-0 rounded-md"
                   style={{ background: "linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%)" }} />
-                <span className="text-[9px] font-bold text-white/50 tracking-wide z-10">SCRATCH</span>
+
+                {/* Coin symbol */}
+                <div className="z-10 flex flex-col items-center">
+                  <span className="text-lg opacity-60">🪙</span>
+                  <span className="text-[8px] font-bold text-neutral-600 mt-0.5">RUBBELN</span>
+                </div>
+
+                {/* Prize hint at bottom */}
+                <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5 z-10">
+                  {winEmojis.map((e, i) => (
+                    <span key={i} className="text-[8px] opacity-40">{e}</span>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Bottom: Price + zones */}
             <div className="w-full flex items-center justify-between">
-              <div className="text-[7px] font-mono" style={{ color: design.accent }}>
+              <div className="text-[7px] font-mono font-bold" style={{ color: design.accent }}>
                 ${cardType.baseCost.toLocaleString()}
               </div>
               <div className="flex gap-0.5">
                 {Array.from({ length: Math.min(cardType.zones, 6) }).map((_, i) => (
-                  <div key={i} className="w-1 h-1 rounded-full" style={{ background: design.accent, opacity: 0.4 }} />
+                  <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: design.accent, opacity: 0.4 }} />
                 ))}
               </div>
-              <div className="text-[7px]" style={{ color: design.accent }}>
+              <div className="text-[7px] font-bold" style={{ color: design.accent }}>
                 {cardType.zones}z
               </div>
             </div>
           </div>
         ) : (
           /* REVEALED - Result */
-          <div className={`relative z-10 flex flex-col items-center justify-center h-full ${
-            card.prize > 0 ? "" : card.trapTriggered ? "" : ""
-          }`}>
+          <div className="relative z-10 flex flex-col items-center justify-center h-full">
             <div className="absolute inset-0" style={{
               background: card.prize > 0
                 ? "radial-gradient(circle, rgba(34,197,94,0.3), rgba(0,0,0,0.5))"
@@ -405,24 +348,20 @@ export default function DeskCard({
               {card.prize > 0 ? `+$${card.prize.toLocaleString()}` : card.prize < 0 ? `-$${Math.abs(card.prize).toLocaleString()}` : "No Win"}
             </div>
             <div className="flex gap-0.5 mt-1 z-10">
-              {card.zones.slice(0, 5).map((z, i) => (
-                <span key={i} className="text-[9px]">{SYMBOLS[z.symbols[0]?.symbolId]?.emoji ?? "?"}</span>
+              {card.zones.map((z, i) => (
+                <span key={i} className="text-[10px]">{SYMBOLS[z.symbols[0]?.symbolId]?.emoji ?? "?"}</span>
               ))}
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onTrash(card.id); }}
-              className="absolute top-1 right-1 w-5 h-5 bg-red-700/80 hover:bg-red-600 rounded-full text-[8px] flex items-center justify-center z-20">🗑️</button>
           </div>
         )}
-
-        {/* Robot button */}
-        {!card.revealed && showRobot && (
-          <button onClick={(e) => { e.stopPropagation(); onSendRobot(card.id); }}
-            className="absolute top-1 right-1 w-5 h-5 rounded-full text-[8px] flex items-center justify-center z-20 shadow-lg"
-            style={{ background: `${design.accent}cc`, border: `1px solid ${design.accent}` }}>
-            🤖
-          </button>
-        )}
       </div>
+
+      <style>{`
+        @keyframes cardPlace {
+          0% { opacity: 0; transform: scale(0.5) translateY(-50px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
