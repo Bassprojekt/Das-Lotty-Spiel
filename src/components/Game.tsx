@@ -248,6 +248,17 @@ export default function Game() {
               </div>
             )}
 
+            {/* Washing game in center of desk */}
+            {washing && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="text-center mb-4">
+                  <div className="text-lg font-bold text-blue-300">🧽 Dishwashing</div>
+                  <div className="text-xs text-neutral-400">Scrub the plate clean!</div>
+                </div>
+                <WashGame progress={washingProgress} onComplete={doWash} onCancel={cancelWash} />
+              </div>
+            )}
+
             {/* Center card or empty hint */}
             {centerCard && activeCard && activeCT ? (
               <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -313,27 +324,82 @@ export default function Game() {
             )}
           </div>
 
-          {/* DAY JOB BAR */}
-          <div className="h-24 border-t border-neutral-700 flex items-center px-4 gap-4" style={{ background: "#1f2937" }}>
+          {/* DAY JOB BAR - simple button */}
+          <div className="h-14 border-t border-neutral-700 flex items-center px-4 gap-4" style={{ background: "#1f2937" }}>
             <div className="text-xs text-neutral-500 font-bold">DISHWASHING</div>
             <div className="flex-1 flex items-center justify-center">
-              {!washing ? (
+              {washing ? (
+                <div className="text-xs text-green-400 animate-pulse">🧽 Scrubbing... {Math.floor(washingProgress)}%</div>
+              ) : (
                 <button onClick={startWash}
                   disabled={gs.dayJobCooldown > 0}
-                  className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+                  className={`px-6 py-1.5 rounded-lg text-sm font-bold transition-all ${
                     gs.dayJobCooldown > 0
                       ? "bg-neutral-700 text-neutral-500"
                       : "bg-green-600 text-white hover:bg-green-500 active:scale-95"
                   }`}>
-                  {gs.dayJobCooldown > 0 ? `WAIT ${gs.dayJobCooldown}s` : "WASH!"}
+                  {gs.dayJobCooldown > 0 ? `WAIT ${gs.dayJobCooldown}s` : "START!"}
                 </button>
-              ) : (
-                <WashGame progress={washingProgress} onComplete={doWash} onCancel={cancelWash} />
               )}
             </div>
             <div className="text-xs text-green-400 font-bold">
               {formatMoney(5 * gs.dayJobLevel)} PER
             </div>
+          </div>
+        </div>
+
+        {/* RIGHT SIDEBAR - Upgrades */}
+        <div className="w-52 flex-shrink-0 flex flex-col border-l border-neutral-800" style={{ background: "#1a1f2e" }}>
+          <div className="p-2 border-b border-neutral-800">
+            <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1">Upgrades</div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {["luck", "power", "area", "multi", "auto", "qol"].map((cat) => {
+              const ups = gs.upgrades.filter((u) => u.category === cat);
+              if (ups.every((u) => !u.purchased) && ups.some((u) => {
+                const prereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
+                return !prereq;
+              })) {
+                return null;
+              }
+              return (
+                <div key={cat}>
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase mb-0.5">{cat}</div>
+                  {ups.map((u) => {
+                    const canBuy = gs.balance >= u.cost;
+                    const hasPrereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
+                    if (!hasPrereq && !u.purchased) return null;
+                    return (
+                      <div key={u.id} className={`flex items-center justify-between py-1 px-1 rounded text-[10px] mb-0.5 ${
+                        u.purchased ? "bg-emerald-900/20" : ""
+                      }`}>
+                        <span className={`truncate flex-1 ${u.purchased ? "text-emerald-400" : "text-neutral-300"}`}>
+                          {u.icon} {u.name}
+                        </span>
+                        {u.purchased ? (
+                          <span className="text-emerald-500 text-[9px]">✓</span>
+                        ) : (
+                          <button onClick={() => setGs((p) => buyUpgrade(p, u.id))} disabled={!canBuy}
+                            className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              canBuy ? "bg-violet-700 text-white" : "bg-neutral-700 text-neutral-600"
+                            }`}>{formatMoney(u.cost)}</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Prestige button */}
+          <div className="border-t border-neutral-800 p-2">
+            <button onClick={() => setShowPrestige(true)} className="w-full text-left">
+              <div className="text-[10px] font-bold text-purple-400 uppercase">✨ Prestige</div>
+              <div className="text-[9px] text-neutral-500">
+                {gs.totalPrestiges > 0 ? `${gs.totalPrestiges}x · ${gs.jackPoints} JP` : "Earn $1M to unlock"}
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -429,16 +495,22 @@ function WashGame({ progress, onComplete, onCancel }: { progress: number; onComp
     initRef.current = true;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = 200;
-    canvas.height = 60;
+    canvas.width = 400;
+    canvas.height = 200;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.fillStyle = "#8B7355";
-    ctx.fillRect(0, 0, 200, 60);
-    for (let i = 0; i < 20; i++) {
+    ctx.fillRect(0, 0, 400, 200);
+    for (let i = 0; i < 60; i++) {
       ctx.beginPath();
-      ctx.arc(Math.random() * 200, Math.random() * 60, 3 + Math.random() * 8, 0, Math.PI * 2);
+      ctx.arc(Math.random() * 400, Math.random() * 200, 5 + Math.random() * 15, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(90,60,20,${0.3 + Math.random() * 0.3})`;
+      ctx.fill();
+    }
+    for (let i = 0; i < 15; i++) {
+      ctx.beginPath();
+      ctx.arc(Math.random() * 400, Math.random() * 200, 3 + Math.random() * 6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(60,40,15,${0.4 + Math.random() * 0.4})`;
       ctx.fill();
     }
   }, []);
@@ -447,17 +519,17 @@ function WashGame({ progress, onComplete, onCancel }: { progress: number; onComp
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (200 / rect.width);
-    const y = (e.clientY - rect.top) * (60 / rect.height);
+    const x = (e.clientX - rect.left) * (400 / rect.width);
+    const y = (e.clientY - rect.top) * (200 / rect.height);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.arc(x, y, 25, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = "source-over";
     setClean((prev) => {
-      const next = Math.min(100, prev + 2);
+      const next = Math.min(100, prev + 0.8);
       onComplete(next);
       return next;
     });
@@ -466,7 +538,7 @@ function WashGame({ progress, onComplete, onCancel }: { progress: number; onComp
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="text-[10px] text-neutral-500">Scrub the plate!</div>
-      <canvas ref={canvasRef} className="rounded cursor-crosshair" style={{ width: 200, height: 60, touchAction: "none" }}
+      <canvas ref={canvasRef} className="rounded-xl cursor-crosshair border-2 border-neutral-600" style={{ width: 320, height: 160, touchAction: "none" }}
         onPointerDown={(e) => { e.preventDefault(); handleScrub(e); }}
         onPointerMove={(e) => { if (e.buttons > 0) handleScrub(e); }} />
       <div className="w-48 h-2 bg-neutral-700 rounded-full overflow-hidden">
