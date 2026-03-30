@@ -24,7 +24,13 @@ const riskColors: Record<string, string> = {
 
 interface DC { cardId: string; slot: "desk" | "center" | "robot" | "robot_done"; x: number; y: number; z: number; }
 let nz = 10;
-function rp(i: number) { return { x: 150 + (i % 4) * 130 + (Math.random() * 20 - 10), y: 20 + Math.floor(i / 4) * 155 + (Math.random() * 15 - 7) }; }
+function rp(i: number) {
+  // Stack cards in a pile with slight random offset
+  return {
+    x: 200 + (Math.random() * 10 - 5),
+    y: 80 + (Math.random() * 10 - 5),
+  };
+}
 
 export default function Game() {
   const [gs, setGs] = useState<GameState>(createInitialState);
@@ -34,6 +40,9 @@ export default function Game() {
   const [wash, setWash] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [muted, setMutedState] = useState(false);
+  const [dc, setDc] = useState<DC[]>([]);
+  const di = useRef(0);
+  const deskRef = useRef<HTMLDivElement>(null);
 
   // Init audio on first click
   useEffect(() => {
@@ -41,56 +50,8 @@ export default function Game() {
     window.addEventListener("click", handler);
     return () => window.removeEventListener("click", handler);
   }, []);
-  const [dc, setDc] = useState<DC[]>([]);
-  const di = useRef(0);
-  const deskRef = useRef<HTMLDivElement>(null);
 
-  // Buy
-  const buy = useCallback((id: string) => {
-    setGs((p) => { const n = buyCard(p, id); const c = n.cards[n.cards.length - 1]; if (c) { const pos = rp(di.current++); setDc((d) => [...d, { cardId: c.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } return n; });
-  }, []);
-  const buyB = useCallback((id: string, cnt: number) => {
-    setGs((p) => { let c = p; for (let i = 0; i < cnt; i++) { const b = c.cards.length; c = buyCard(c, id); if (c.cards.length > b) { const nc = c.cards[c.cards.length - 1]; const pos = rp(di.current++); setDc((d) => [...d, { cardId: nc.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } } return c; });
-  }, []);
-
-  const unlock = useCallback((id: string) => setGs((p) => unlockCardType(p, id)), []);
-  const scratch = useCallback((cid: string, zi: number) => setGs((p) => scratchZone(p, cid, zi)), []);
-  const peek = useCallback((cid: string, zi: number) => setGs((p) => peekZone(p, cid, zi)), []);
-  const reveal = useCallback((cid: string) => setGs((p) => revealCard(p, cid)), []);
-  const buyU = useCallback((id: string) => setGs((p) => buyUpgrade(p, id)), []);
-  const buyP = useCallback((id: string) => setGs((p) => buyPrestigeUpgrade(p, id)), []);
-  const prestige_ = useCallback(() => setGs((p) => prestige(p)), []);
-  const dismissN = useCallback((id: string) => setGs((p) => dismissNotification(p, id)), []);
-  const dismissJ = useCallback(() => setGs((p) => ({ ...p, showJackpot: false })), []);
-  const dayJob = useCallback(() => { setGs((p) => doDayJob(p)); setWash(false); }, []);
-
-  // Open card in center
-  const openCard = useCallback((cardId: string) => {
-    setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "center" } : c.slot === "center" ? { ...c, slot: "desk" } : c)));
-    setGs((p) => setActiveCard(p, cardId));
-  }, []);
-
-  // Trash card
-  const trashCard = useCallback((cardId: string) => {
-    setDc((d) => d.filter((c) => c.cardId !== cardId));
-    setGs((p) => discardCard(p, cardId));
-  }, []);
-
-  // Send to robot
-  const sendRobot = useCallback((cardId: string) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "robot" } : c))), []);
-
-  // Fan push all to robot
-  const fanAll = useCallback(() => {
-    const el = deskRef.current;
-    let tx = 600, ty = 400;
-    if (el) { tx = el.clientWidth - 120; ty = el.clientHeight - 100; }
-    setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, x: tx, y: ty } : c)));
-    setTimeout(() => setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c))), 600);
-  }, []);
-
-  // Drag
   const onDrag = useCallback((cardId: string, x: number, y: number) => {
-    // Clamp to desk boundaries
     const desk = deskRef.current;
     const CARD_W = 110;
     const CARD_H = 140;
@@ -101,8 +62,6 @@ export default function Game() {
       const dh = desk.clientHeight;
       cx = Math.max(0, Math.min(dw - CARD_W, x));
       cy = Math.max(0, Math.min(dh - CARD_H, y));
-
-      // Check if near trash can for lid animation
       const tcx = dw / 2, tcy = dh - 50;
       const nearTrash = Math.hypot(cx + 55 - tcx, cy + 70 - tcy) < 80;
       setTrashOpen(nearTrash);
@@ -135,6 +94,37 @@ export default function Game() {
       }
     }
   }, [dc, gs.cards]);
+
+  // All callbacks
+  const buy = useCallback((id: string) => {
+    setGs((p) => { const n = buyCard(p, id); const c = n.cards[n.cards.length - 1]; if (c) { const pos = rp(di.current++); setDc((d) => [...d, { cardId: c.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } return n; });
+  }, []);
+  const buyB = useCallback((id: string, cnt: number) => {
+    setGs((p) => { let c = p; for (let i = 0; i < cnt; i++) { const b = c.cards.length; c = buyCard(c, id); if (c.cards.length > b) { const nc = c.cards[c.cards.length - 1]; const pos = rp(di.current++); setDc((d) => [...d, { cardId: nc.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } } return c; });
+  }, []);
+  const unlock = useCallback((id: string) => setGs((p) => unlockCardType(p, id)), []);
+  const scratch = useCallback((cid: string, zi: number) => setGs((p) => scratchZone(p, cid, zi)), []);
+  const peek = useCallback((cid: string, zi: number) => setGs((p) => peekZone(p, cid, zi)), []);
+  const reveal = useCallback((cid: string) => setGs((p) => revealCard(p, cid)), []);
+  const buyU = useCallback((id: string) => setGs((p) => buyUpgrade(p, id)), []);
+  const buyP = useCallback((id: string) => setGs((p) => buyPrestigeUpgrade(p, id)), []);
+  const prestige_ = useCallback(() => setGs((p) => prestige(p)), []);
+  const dismissN = useCallback((id: string) => setGs((p) => dismissNotification(p, id)), []);
+  const dismissJ = useCallback(() => setGs((p) => ({ ...p, showJackpot: false })), []);
+  const dayJob = useCallback(() => { setGs((p) => doDayJob(p)); setWash(false); }, []);
+  const openCard = useCallback((cardId: string) => {
+    setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "center" } : c.slot === "center" ? { ...c, slot: "desk" } : c)));
+    setGs((p) => setActiveCard(p, cardId));
+  }, []);
+  const trashCard = useCallback((cardId: string) => { setDc((d) => d.filter((c) => c.cardId !== cardId)); setGs((p) => discardCard(p, cardId)); }, []);
+  const sendRobot = useCallback((cardId: string) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "robot" } : c))), []);
+  const fanAll = useCallback(() => {
+    const el = deskRef.current;
+    let tx = 600, ty = 400;
+    if (el) { tx = el.clientWidth - 120; ty = el.clientHeight - 100; }
+    setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, x: tx, y: ty } : c)));
+    setTimeout(() => setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c))), 600);
+  }, []);
 
   // Robot tick
   useEffect(() => {
