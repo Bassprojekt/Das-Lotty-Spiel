@@ -12,46 +12,40 @@ import {
 import { formatMoney, SYMBOLS } from "@/lib/gameData";
 import ScratchCard from "./ScratchCard";
 import DeskCard from "./DeskCard";
-import FanGadget from "./FanGadget";
-import DayJob from "./DayJob";
-import UpgradeShop from "./UpgradeShop";
 import NotificationToast, { JackpotOverlay } from "./Notifications";
 
-const riskColors: Record<string, string> = {
-  safe: "text-green-400", low: "text-blue-400", medium: "text-yellow-400",
-  high: "text-orange-400", very_high: "text-red-400", ultra: "text-purple-400",
-};
-
-interface DC { cardId: string; slot: "desk" | "center" | "robot" | "robot_done"; x: number; y: number; z: number; }
+interface DC { cardId: string; slot: "desk" | "center"; x: number; y: number; z: number; }
 let nz = 10;
-function rp(i: number) {
-  // Stack cards in a pile with slight random offset
-  return {
-    x: 200 + (Math.random() * 10 - 5),
-    y: 80 + (Math.random() * 10 - 5),
-  };
-}
+
+const riskLabels: Record<string, { text: string; color: string }> = {
+  safe: { text: "Safe", color: "text-green-400" },
+  low: { text: "Low", color: "text-blue-400" },
+  medium: { text: "Med", color: "text-yellow-400" },
+  high: { text: "High", color: "text-orange-400" },
+  very_high: { text: "V.High", color: "text-red-400" },
+  ultra: { text: "Ultra", color: "text-purple-400" },
+};
 
 export default function Game() {
   const [gs, setGs] = useState<GameState>(createInitialState);
-  const [showP, setShowP] = useState(false);
-  const [showU, setShowU] = useState(false);
-  const [selCat, setSelCat] = useState(0);
-  const [wash, setWash] = useState(false);
-  const [trashOpen, setTrashOpen] = useState(false);
+  const [selectedCat, setSelectedCat] = useState(0);
+  const [showUpgrades, setShowUpgrades] = useState(false);
+  const [showPrestige, setShowPrestige] = useState(false);
   const [muted, setMutedState] = useState(false);
   const [dc, setDc] = useState<DC[]>([]);
-  const di = useRef(0);
+  const [washing, setWashing] = useState(false);
+  const [washingProgress, setWashingProgress] = useState(0);
+  const washRef = useRef<{ clean: number; total: number }>({ clean: 0, total: 0 });
   const deskRef = useRef<HTMLDivElement>(null);
 
-  // Init audio on first click
+  // Audio init
   useEffect(() => {
-    const handler = () => { initAudio(); window.removeEventListener("click", handler); };
-    window.addEventListener("click", handler);
-    return () => window.removeEventListener("click", handler);
+    const h = () => { initAudio(); window.removeEventListener("click", h); };
+    window.addEventListener("click", h);
+    return () => window.removeEventListener("click", h);
   }, []);
 
-  // Play phone ring when first money earned
+  // Phone ring
   const phoneRung = useRef(false);
   useEffect(() => {
     if (gs.balance >= 10 && gs.totalCardsPlayed === 0 && !phoneRung.current) {
@@ -60,367 +54,425 @@ export default function Game() {
     }
   }, [gs.balance, gs.totalCardsPlayed]);
 
-  const onDrag = useCallback((cardId: string, x: number, y: number) => {
-    const desk = deskRef.current;
-    const CARD_W = 110;
-    const CARD_H = 140;
-    let cx = x;
-    let cy = y;
-    if (desk) {
-      const dw = desk.clientWidth;
-      const dh = desk.clientHeight;
-      cx = Math.max(0, Math.min(dw - CARD_W, x));
-      cy = Math.max(0, Math.min(dh - CARD_H, y));
-      const tcx = dw / 2, tcy = dh - 50;
-      const nearTrash = Math.hypot(cx + 55 - tcx, cy + 70 - tcy) < 80;
-      setTrashOpen(nearTrash);
-    }
-    setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, x: cx, y: cy } : c)));
-  }, []);
-  const onFront = useCallback((cardId: string) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, z: ++nz } : c))), []);
+  // Day job tick
+  useEffect(() => { const iv = setInterval(() => setGs((p) => tickDayJob(p)), 1000); return () => clearInterval(iv); }, []);
 
-  // Drag end - check if dropped on trash can
-  const onDragEnd = useCallback((cardId: string, x: number, y: number) => {
-    setTrashOpen(false);
-    const el = deskRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const tcx = r.width / 2, tcy = r.height - 50;
-    if (Math.hypot(x + 55 - tcx, y + 70 - tcy) < 60) {
-      setDc((d) => d.filter((c) => c.cardId !== cardId));
-      setGs((p) => discardCard(p, cardId));
-    }
-  }, []);
+  // Derived
+  const cats = gs.catalogues.filter((c) => c.unlocked);
+  const cat = cats[selectedCat];
+  const catCards = gs.cardTypes.filter((t) => t.catalogueId === cat?.id);
+  const deskOnly = dc.filter((d) => d.slot === "desk");
+  const centerCard = dc.find((d) => d.slot === "center");
+  const activeCard = gs.cards.find((c) => c.id === gs.activeCardId);
+  const activeCT = activeCard ? gs.cardTypes.find((t) => t.id === activeCard.cardTypeId) : null;
+  const unlockedUpgrades = gs.upgrades.filter((u) => u.purchased).length;
 
-  // Click on desk background to dismiss center card
-  const handleDeskClick = useCallback(() => {
-    const center = dc.find((c) => c.slot === "center");
-    if (center) {
-      const card = gs.cards.find((c) => c.id === center.cardId);
-      if (card?.revealed) {
-        setDc((d) => d.map((c) => (c.cardId === center.cardId ? { ...c, slot: "desk" } : c)));
-        setGs((p) => setActiveCard(p, null));
-      }
-    }
-  }, [dc, gs.cards]);
-
-  // All callbacks
+  // Callbacks
   const buy = useCallback((id: string) => {
-    setGs((p) => { const n = buyCard(p, id); const c = n.cards[n.cards.length - 1]; if (c) { const pos = rp(di.current++); setDc((d) => [...d, { cardId: c.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } return n; });
+    setGs((p) => {
+      const n = buyCard(p, id);
+      const c = n.cards[n.cards.length - 1];
+      if (c) setDc((d) => [...d, { cardId: c.id, slot: "desk", x: 180 + Math.random() * 20, y: 60 + Math.random() * 15, z: ++nz }]);
+      return n;
+    });
   }, []);
-  const buyB = useCallback((id: string, cnt: number) => {
-    setGs((p) => { let c = p; for (let i = 0; i < cnt; i++) { const b = c.cards.length; c = buyCard(c, id); if (c.cards.length > b) { const nc = c.cards[c.cards.length - 1]; const pos = rp(di.current++); setDc((d) => [...d, { cardId: nc.id, slot: "desk", x: pos.x, y: pos.y, z: ++nz }]); } } return c; });
-  }, []);
-  const unlock = useCallback((id: string) => setGs((p) => unlockCardType(p, id)), []);
-  const scratch = useCallback((cid: string, zi: number) => setGs((p) => scratchZone(p, cid, zi)), []);
-  const peek = useCallback((cid: string, zi: number) => setGs((p) => peekZone(p, cid, zi)), []);
-  const reveal = useCallback((cid: string) => setGs((p) => revealCard(p, cid)), []);
-  const buyU = useCallback((id: string) => setGs((p) => buyUpgrade(p, id)), []);
-  const buyP = useCallback((id: string) => setGs((p) => buyPrestigeUpgrade(p, id)), []);
-  const prestige_ = useCallback(() => setGs((p) => prestige(p)), []);
-  const dismissN = useCallback((id: string) => setGs((p) => dismissNotification(p, id)), []);
-  const dismissJ = useCallback(() => setGs((p) => ({ ...p, showJackpot: false })), []);
-  const dayJob = useCallback(() => { setGs((p) => doDayJob(p)); setWash(false); }, []);
+
   const openCard = useCallback((cardId: string) => {
     setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "center" } : c.slot === "center" ? { ...c, slot: "desk" } : c)));
     setGs((p) => setActiveCard(p, cardId));
   }, []);
-  const trashCard = useCallback((cardId: string) => { setDc((d) => d.filter((c) => c.cardId !== cardId)); setGs((p) => discardCard(p, cardId)); }, []);
-  const sendRobot = useCallback((cardId: string) => setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "robot" } : c))), []);
-  const fanAll = useCallback(() => {
-    const el = deskRef.current;
-    let tx = 600, ty = 400;
-    if (el) { tx = el.clientWidth - 120; ty = el.clientHeight - 100; }
-    setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, x: tx, y: ty } : c)));
-    setTimeout(() => setDc((d) => d.map((c) => (c.slot === "desk" ? { ...c, slot: "robot" } : c))), 600);
+
+  const finishCard = useCallback((cardId: string) => {
+    setDc((d) => d.map((c) => (c.cardId === cardId ? { ...c, slot: "desk" } : c)));
+    setGs((p) => setActiveCard(p, null));
   }, []);
 
-  // Robot tick
-  useEffect(() => {
-    if (!gs.autoScratcherActive) return;
-    const iv = setInterval(() => {
-      setDc((d) => {
-        const q = d.find((c) => c.slot === "robot");
-        if (!q) return d;
-        setGs((p) => revealCard(p, q.cardId));
-        return d.map((c) => (c.cardId === q.cardId ? { ...c, slot: "robot_done" } : c));
-      });
-    }, Math.max(200, 800 - gs.autoScratcherSpeed * 200));
-    return () => clearInterval(iv);
-  }, [gs.autoScratcherActive, gs.autoScratcherSpeed]);
+  const trashCard = useCallback((cardId: string) => {
+    setDc((d) => d.filter((c) => c.cardId !== cardId));
+    setGs((p) => discardCard(p, cardId));
+    if (gs.activeCardId === cardId) setGs((p) => setActiveCard(p, null));
+  }, [gs.activeCardId]);
 
-  useEffect(() => { const iv = setInterval(() => setGs((p) => tickDayJob(p)), 1000); return () => clearInterval(iv); }, []);
+  const startWash = useCallback(() => {
+    setWashing(true);
+    washRef.current = { clean: 0, total: 80 };
+    setWashingProgress(0);
+  }, []);
 
-  const activeCard = gs.cards.find((c) => c.id === gs.activeCardId);
-  const activeCT = activeCard ? gs.cardTypes.find((t) => t.id === activeCard.cardTypeId) : null;
-  const cats = gs.catalogues.filter((c) => c.unlocked);
-  const cat = cats[selCat];
-  const catC = gs.cardTypes.filter((t) => t.catalogueId === cat?.id);
-  const deskOnly = dc.filter((d) => d.slot === "desk");
-  const center = dc.find((d) => d.slot === "center");
-  const rQueue = dc.filter((d) => d.slot === "robot");
-  const rDone = dc.filter((d) => d.slot === "robot_done");
+  const doWash = useCallback((pct: number) => {
+    setWashingProgress(pct);
+    if (pct >= 90) {
+      setWashing(false);
+      setWashingProgress(0);
+      setGs((p) => doDayJob(p));
+    }
+  }, []);
+
+  const cancelWash = useCallback(() => {
+    setWashing(false);
+    setWashingProgress(0);
+  }, []);
 
   return (
-    <div className="min-h-screen text-white relative"
-      style={{ background: "#1a1a1a" }}>
-
-      {/* TOP BAR */}
-      <header className="relative z-40 border-b-2 border-amber-900/50" style={{ background: "linear-gradient(180deg,#2a1f15,#1f160d)" }}>
-        <div className="max-w-7xl mx-auto px-3 py-1.5 flex items-center justify-between">
-          <div className="flex items-center gap-3"><span className="text-2xl">🎰</span><h1 className="text-base font-black font-mono text-amber-400">LUCKY SCRATCH</h1></div>
-          <div className="flex items-center gap-4">
-            {gs.autoScratcherUnlocked && <button onClick={() => setGs((p) => ({ ...p, autoScratcherActive: !p.autoScratcherActive }))} className={`px-2 py-1 rounded text-xs font-bold border ${gs.autoScratcherActive ? "bg-emerald-800 border-emerald-500 text-emerald-300" : "bg-neutral-800 border-neutral-600 text-neutral-400"}`}>🤖 {gs.autoScratcherActive ? "ON" : "OFF"}</button>}
-            <button onClick={() => { const m = !muted; setMutedState(m); setMuted(m); }} className={`px-2 py-1 rounded text-xs font-bold border ${muted ? "bg-neutral-800 border-neutral-600 text-neutral-400" : "bg-emerald-800 border-emerald-500 text-emerald-300"}`}>{muted ? "🔇" : "🔊"}</button>
-            {gs.jackPoints > 0 && <div className="text-xs font-bold text-purple-400">{gs.jackPoints} 💎</div>}
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded px-3 py-1"><span className="text-lg font-black text-emerald-400 font-mono tabular-nums">{formatMoney(gs.balance)}</span></div>
-          </div>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "#111827" }}>
+      {/* HEADER */}
+      <header className="flex items-center justify-between px-4 py-2 border-b border-neutral-800" style={{ background: "#1f2937" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-green-400 font-mono font-bold">
+            {cat ? `SCENE: ${cat.name.toUpperCase()}` : "LUCKY SCRATCH"}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setShowPrestige(true)} className="text-xs text-neutral-400 hover:text-white transition-colors">
+            Prestige
+          </button>
+          <button onClick={() => setShowUpgrades(true)} className="text-xs text-neutral-400 hover:text-white transition-colors">
+            Stats
+          </button>
+          <button onClick={() => { const m = !muted; setMutedState(m); setMuted(m); }}
+            className="text-xs text-neutral-400 hover:text-white transition-colors">
+            {muted ? "🔇" : "🔊"}
+          </button>
+          <span className="text-lg font-bold text-green-400 font-mono">
+            {formatMoney(gs.balance)}
+          </span>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-3 flex gap-3" style={{ height: "calc(100vh - 52px)" }}>
+      {/* MAIN AREA */}
+      <div className="flex-1 flex overflow-hidden">
 
-        {/* LEFT: SHOP */}
-        <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-          <div className="bg-amber-950/60 border border-amber-800/40 rounded-lg p-2 flex-1 flex flex-col">
-            <div className="text-[10px] font-bold text-amber-400 mb-1.5 uppercase">Shop</div>
-            <div className="flex gap-1 mb-2">{cats.map((c, i) => <button key={c.id} onClick={() => setSelCat(i)} className={`flex-1 py-1 rounded text-xs font-bold border ${i === selCat ? "bg-amber-800 border-amber-500 text-amber-200" : "bg-amber-950/50 border-amber-800/30 text-amber-600"}`}>{c.icon}</button>)}</div>
-            <div className="space-y-1.5 flex-1 overflow-y-auto pr-1">
-              {catC.map((ct) => {
-                const cb = gs.balance >= ct.baseCost;
-                if (!ct.unlocked && ct.unlockCost > 0) return <div key={ct.id} className="rounded-lg p-1.5 border border-dashed border-neutral-700/50 bg-neutral-900/30"><div className="flex items-center gap-1.5"><div className="w-7 h-7 rounded flex items-center justify-center bg-neutral-800 animate-pulse">❓</div><div className="text-[11px] font-bold text-neutral-500">???</div></div><button onClick={() => unlock(ct.id)} disabled={!cb} className={`w-full py-1 rounded text-[10px] font-bold mt-1 ${cb ? "bg-amber-700 text-white" : "bg-neutral-800 text-neutral-600"}`}>🔓 {formatMoney(ct.unlockCost)}</button></div>;
-                if (ct.isPrestige && !ct.unlocked) return <div key={ct.id} className="rounded-lg p-1.5 border border-dashed border-purple-800/40 bg-purple-950/20"><div className="text-[11px] font-bold text-purple-400/60">💀 Prestige</div></div>;
-                const te = ct.trapSymbols.map((id) => SYMBOLS[id]?.emoji ?? "?");
-                return <div key={ct.id} className="rounded-lg p-1.5 border border-amber-700/40 bg-amber-900/30"><div className="flex items-center justify-between mb-1"><div className="flex items-center gap-1.5"><div className="w-7 h-7 rounded flex items-center justify-center text-sm" style={{ background: `linear-gradient(135deg,${ct.colorFrom},${ct.colorTo})` }}>{ct.icon}</div><div><div className="text-[11px] font-bold text-amber-100">{ct.name}</div><div className="flex gap-0.5"><span className={`text-[9px] ${riskColors[ct.riskLevel]}`}>{ct.zones}z</span>{te.length > 0 && <span className="text-[9px]">{te.join("")}</span>}</div></div></div><div className={`text-[11px] font-bold font-mono ${cb ? "text-emerald-400" : "text-red-400"}`}>{formatMoney(ct.baseCost)}</div></div><div className="flex gap-1"><button onClick={() => buy(ct.id)} disabled={!cb} className={`flex-1 py-0.5 rounded text-[10px] font-bold ${cb ? "bg-emerald-700 text-white" : "bg-neutral-800 text-neutral-600"}`}>Buy</button><button onClick={() => buyB(ct.id, 5)} disabled={gs.balance < ct.baseCost * 5} className={`px-2 py-0.5 rounded text-[10px] font-bold ${gs.balance >= ct.baseCost * 5 ? "bg-blue-700 text-white" : "bg-neutral-800 text-neutral-600"}`}>x5</button></div></div>;
-              })}
-            </div>
-          </div>
-          <div className="bg-blue-950/40 border border-blue-800/30 rounded-lg p-2">
-            <div className="text-[10px] font-bold text-blue-400 mb-1 uppercase">Sink</div>
-            <DayJob level={gs.dayJobLevel} cooldown={gs.dayJobCooldown} onWork={dayJob} onStart={() => setWash(true)} active={false} />
-          </div>
-        </div>
+        {/* LEFT SIDEBAR - Card Catalogue */}
+        <div className="w-56 flex-shrink-0 flex flex-col border-r border-neutral-800" style={{ background: "#1a1f2e" }}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {catCards.map((ct) => {
+              const canBuy = gs.balance >= ct.baseCost;
+              const risk = riskLabels[ct.riskLevel] ?? riskLabels.medium;
 
-        {/* CENTER */}
-        <div className="flex-1 relative">
-          {wash ? (
-            <div className="w-full h-full flex flex-col items-center justify-center">
-              <div className="text-center mb-3"><div className="text-lg font-bold text-blue-300">🧽 Dishwashing</div></div>
-              <div className="w-full max-w-md"><DayJob level={gs.dayJobLevel} cooldown={0} onWork={dayJob} active={true} /></div>
-            </div>
-          ) : center && activeCard && activeCT ? (
-            /* CENTER CARD OVERLAY */
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center"
-              onClick={(e) => { if (e.target === e.currentTarget && activeCard.revealed) { setDc((d) => d.map((c) => c.cardId === activeCard.id ? { ...c, slot: "desk" } : c)); setGs((p) => setActiveCard(p, null)); } }}>
-              {/* Backdrop */}
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-              <div className="relative z-10 flex flex-col items-center gap-3 animate-scale-in">
-                <div className="text-center">
-                  <div className="text-base font-bold mb-1" style={{ color: activeCT.colorFrom }}>{activeCT.icon} {activeCT.name}</div>
-                  {!activeCard.revealed && <div className="text-xs text-neutral-400">Rub each zone until it reveals! Right-click to peek.</div>}
-                </div>
-                <ScratchCard key={activeCard.id} card={activeCard} cardType={activeCT} isActive={true} scratchPower={gs.scratchPower}
-                  onScratch={scratch} onPeek={peek} onDiscard={trashCard} onReveal={reveal} onSelect={() => {}} />
-                {activeCard.revealed && (
-                  <div className="flex gap-3 animate-slide-down">
-                    <button onClick={() => { setDc((d) => d.map((c) => c.cardId === activeCard.id ? { ...c, slot: "desk" } : c)); setGs((p) => setActiveCard(p, null)); }}
-                      className="px-6 py-2.5 bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-bold rounded-xl border border-neutral-500 shadow-lg transition-all active:scale-95">✓ Back to Desk</button>
-                    <button onClick={() => trashCard(activeCard.id)}
-                      className="px-5 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-bold rounded-xl border border-red-500 transition-all active:scale-95">🗑️ Trash</button>
+              if (!ct.unlocked && ct.unlockCost > 0) {
+                return (
+                  <div key={ct.id} className="flex items-center gap-2 p-2 rounded bg-neutral-800/50 opacity-60">
+                    <div className="w-6 h-6 rounded bg-neutral-700 flex items-center justify-center text-xs">🔒</div>
+                    <div className="flex-1">
+                      <div className="text-xs text-neutral-500">???</div>
+                    </div>
+                    <button onClick={() => setGs((p) => unlockCardType(p, ct.id))}
+                      disabled={gs.balance < ct.unlockCost}
+                      className={`text-[10px] px-2 py-0.5 rounded ${gs.balance >= ct.unlockCost ? "bg-amber-700 text-white" : "bg-neutral-700 text-neutral-500"}`}>
+                      {formatMoney(ct.unlockCost)}
+                    </button>
                   </div>
-                )}
-                {!activeCard.revealed && (
-                  <button onClick={() => reveal(activeCard.id)}
-                    className="px-4 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-neutral-300 text-xs rounded-lg transition-all">👁️ Reveal All</button>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* DESK */
-            <div ref={deskRef} data-desk="true" className="w-full h-full relative rounded-xl overflow-hidden"
-              style={{
-                border: "3px solid #6b4226",
-                boxShadow: "inset 0 0 30px rgba(0,0,0,0.4), 0 4px 15px rgba(0,0,0,0.3)",
-                background: `
-                  repeating-linear-gradient(
-                    0deg,
-                    transparent 0px,
-                    transparent 58px,
-                    rgba(80,50,20,0.3) 58px,
-                    rgba(80,50,20,0.3) 60px
-                  ),
-                  repeating-linear-gradient(
-                    90deg,
-                    transparent 0px,
-                    transparent 120px,
-                    rgba(60,40,15,0.2) 120px,
-                    rgba(60,40,15,0.2) 122px
-                  ),
-                  repeating-linear-gradient(
-                    90deg,
-                    transparent 0px,
-                    transparent 8px,
-                    rgba(120,80,30,0.06) 8px,
-                    rgba(120,80,30,0.06) 9px
-                  ),
-                  linear-gradient(180deg,
-                    #c49a3c 0%,
-                    #b8892f 8%,
-                    #d4a843 16%,
-                    #c49a3c 24%,
-                    #b08025 32%,
-                    #c49a3c 40%,
-                    #d4a843 48%,
-                    #b8892f 56%,
-                    #c49a3c 64%,
-                    #d4a843 72%,
-                    #b08025 80%,
-                    #c49a3c 88%,
-                    #b8892f 96%,
-                    #d4a843 100%
-                  )
-                `,
-              }}>
-              {/* Fan */}
-              {gs.upgrades.find((u) => u.id === "fan" && u.purchased) && <FanGadget onFanAll={fanAll} cardCount={deskOnly.length} />}
+                );
+              }
 
-              {/* Empty hint - simple text */}
-              {deskOnly.length === 0 && rQueue.length === 0 && rDone.length === 0 && !gs.autoScratcherActive && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center opacity-50">
-                    {gs.balance < 10 ? (
-                      <div className="text-sm text-amber-400/70 font-mono">
-                        Wasche einen Teller um dein erstes Geld zu verdienen
-                      </div>
-                    ) : gs.totalCardsPlayed === 0 ? (
-                      <div className="text-sm text-emerald-400/70 font-mono">
-                        Kauf dein erstes Los im Shop!
-                      </div>
-                    ) : (
-                      <div className="text-sm text-neutral-500 font-mono">
-                        Kauf neue Lose im Shop
+              if (ct.isPrestige && !ct.unlocked) return null;
+
+              return (
+                <div key={ct.id}
+                  onClick={() => canBuy && buy(ct.id)}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all ${
+                    canBuy ? "hover:bg-neutral-700/50" : "opacity-50"
+                  }`}>
+                  <div className="w-6 h-6 rounded flex items-center justify-center text-sm"
+                    style={{ background: `linear-gradient(135deg, ${ct.colorFrom}, ${ct.colorTo})` }}>
+                    {ct.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-white truncate">{ct.name}</div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-neutral-400">Match any {ct.matchRequired}</span>
+                      <span className={`text-[10px] font-bold ${risk.color}`}>{risk.text}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-xs font-bold font-mono ${canBuy ? "text-green-400" : "text-red-400"}`}>
+                      {formatMoney(ct.baseCost)}
+                    </div>
+                    {ct.trapSymbols.length > 0 && (
+                      <div className="text-[10px]">
+                        {ct.trapSymbols.map((id) => SYMBOLS[id]?.emoji ?? "?").join("")}
                       </div>
                     )}
                   </div>
                 </div>
-              )}
+              );
+            })}
+          </div>
 
-              {/* Phone ringing - tutorial */}
-              {gs.totalCardsPlayed === 0 && gs.balance >= 10 && !wash && (
-                <div className="absolute top-3 right-3 z-40 animate-bounce">
-                  <div className="bg-red-900 border-2 border-red-600 rounded-xl px-4 py-3 shadow-2xl shadow-red-900/50 max-w-[200px]">
-                    {/* Phone */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">📞</span>
-                      <div className="text-[10px] text-red-300 font-bold">RING RING!</div>
-                    </div>
-                    {/* Message */}
-                    <div className="text-[10px] text-neutral-300 leading-relaxed">
-                      Hey! Ich hab hier ein paar Lose für dich. Probier doch mal eins aus! Schau im Shop nach links. 👈
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Desk cards - stacked in pile */}
-              {deskOnly.map((d) => {
-                const card = gs.cards.find((c) => c.id === d.cardId);
-                if (!card) return null;
-                const ct = gs.cardTypes.find((t) => t.id === card.cardTypeId)!;
-                return <DeskCard key={d.cardId} card={card} cardType={ct} x={d.x} y={d.y} zIndex={d.z}
-                  onOpen={openCard} onTrash={trashCard} onSendRobot={sendRobot}
-                  onDrag={onDrag} onDragEnd={onDragEnd} onBringFront={onFront} showRobot={gs.autoScratcherUnlocked} />;
-              })}
-
-              {/* Card pile counter */}
-              {deskOnly.length > 1 && (
-                <div className="absolute top-3 right-3 z-40 bg-neutral-800/90 border border-neutral-600 rounded-lg px-3 py-1.5 pointer-events-none">
-                  <div className="text-xs text-neutral-300 font-bold">🎫 {deskOnly.length} cards</div>
-                </div>
-              )}
-
-              {/* MÜLL-EIMER - unten am Tisch */}
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-50"
-                style={{ transformOrigin: "bottom center" }}>
-                <div className="relative flex flex-col items-center">
-                  <div className="relative" style={{ width: 80, height: 80 }}>
-                    {/* Deckel - animiert öffnen/schließen */}
-                    <div className="absolute -top-2 left-0 right-0 h-5 rounded-t-lg"
-                      style={{
-                        background: "linear-gradient(180deg, #f87171, #ef4444)",
-                        border: "2px solid #fca5a5",
-                        borderBottom: "none",
-                        transform: trashOpen ? "perspective(100px) rotateX(-45deg)" : "perspective(100px) rotateX(0deg)",
-                        transformOrigin: "bottom center",
-                        transition: "transform 0.3s ease",
-                        zIndex: 2,
-                      }}>
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full" style={{ background: "#fecaca" }} />
-                    </div>
-                    {/* Körper */}
-                    <div className="absolute top-3 left-0 right-0 bottom-0 rounded-b-lg"
-                      style={{
-                        background: "linear-gradient(180deg, #ef4444, #dc2626, #b91c1c)",
-                        border: "2px solid #fca5a5",
-                        borderTop: "1px solid rgba(0,0,0,0.2)",
-                        boxShadow: trashOpen ? "0 4px 25px rgba(239,68,68,0.5)" : "0 4px 15px rgba(0,0,0,0.4)",
-                        transition: "box-shadow 0.3s",
-                      }}>
-                      {/* Streifen */}
-                      <div className="absolute top-3 left-0 right-0 flex justify-center gap-3">
-                        {[0, 1, 2].map((i) => <div key={i} className="w-1.5 h-10 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />)}
-                      </div>
-                      {/* Leer - kein Emoji */}
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-red-400 font-black tracking-wider mt-0.5">MÜLL</div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Bottom: card count + sell all */}
+          <div className="border-t border-neutral-800 p-2 flex items-center justify-between">
+            <span className="text-xs text-neutral-500 font-bold">{deskOnly.length} CARDS</span>
+            {deskOnly.length > 0 && (
+              <button onClick={() => {
+                const totalValue = deskOnly.reduce((sum, d) => {
+                  const c = gs.cards.find((card) => card.id === d.cardId);
+                  return sum + (c?.revealed ? c.prize : 0);
+                }, 0);
+                if (totalValue > 0) {
+                  setDc((d) => d.filter((c) => {
+                    const card = gs.cards.find((card) => card.id === c.cardId);
+                    return !card?.revealed;
+                  }));
+                }
+              }} className="text-xs text-neutral-400 hover:text-red-400 transition-colors">
+                Sell All
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* RIGHT */}
-        <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-          <div className="bg-neutral-900/60 border border-neutral-700/40 rounded-lg p-2">
-            <div className="text-[10px] font-bold text-neutral-400 mb-1 uppercase">Stats</div>
-            <div className="grid grid-cols-2 gap-1 text-[10px]">
-              <div><span className="text-neutral-500">Played:</span> <span className="text-blue-400 font-bold">{gs.totalCardsPlayed}</span></div>
-              <div><span className="text-neutral-500">Wins:</span> <span className="text-emerald-400 font-bold">{gs.totalWins}</span></div>
-              <div><span className="text-neutral-500">Earned:</span> <span className="text-emerald-400 font-bold">{formatMoney(gs.totalEarned)}</span></div>
-              <div><span className="text-neutral-500">Best:</span> <span className="text-yellow-400 font-bold">{formatMoney(gs.biggestWin)}</span></div>
-            </div>
-          </div>
-          <button onClick={() => setShowU(true)} className="bg-violet-950/60 border border-violet-700/40 rounded-lg p-2 text-left hover:bg-violet-900/40 transition-all">
-            <div className="flex items-center justify-between"><div><div className="text-[10px] font-bold text-violet-400 uppercase">⬆️ Upgrades</div><div className="text-[9px] text-violet-300">{gs.upgrades.filter((u) => u.purchased).length}/{gs.upgrades.length}</div></div><span className="text-violet-400">→</span></div>
-          </button>
-          <button onClick={() => setShowP(true)} className="bg-purple-950/60 border border-purple-700/40 rounded-lg p-2 text-left hover:bg-purple-900/40 transition-all">
-            <div className="flex items-center justify-between"><div><div className="text-[10px] font-bold text-purple-400 uppercase">✨ Prestige</div><div className="text-[9px] text-purple-300">{gs.totalPrestiges > 0 ? `${gs.totalPrestiges}x · ${gs.jackPoints} JP` : "Earn $1M"}</div></div><span className="text-purple-400">→</span></div>
-          </button>
-        </div>
+        {/* CENTER - Desk + Card */}
+        <div className="flex-1 flex flex-col">
+          {/* Desk area */}
+          <div ref={deskRef} className="flex-1 relative overflow-hidden"
+            style={{
+              background: `
+                repeating-linear-gradient(0deg, transparent 0px, transparent 58px, rgba(80,50,20,0.3) 58px, rgba(80,50,20,0.3) 60px),
+                repeating-linear-gradient(90deg, transparent 0px, transparent 120px, rgba(60,40,15,0.2) 120px, rgba(60,40,15,0.2) 122px),
+                linear-gradient(180deg, #c49a3c 0%, #b8892f 8%, #d4a843 16%, #c49a3c 24%, #b08025 32%, #c49a3c 40%, #d4a843 48%, #b8892f 56%, #c49a3c 64%, #d4a843 72%, #b08025 80%, #c49a3c 88%, #b8892f 96%, #d4a843 100%)
+              `,
+            }}>
 
-        {/* ROBOT */}
-        {gs.autoScratcherUnlocked && (
-          <div className="absolute bottom-3 right-3 z-30">
-            <div className="bg-neutral-900/95 border-2 border-purple-500/50 rounded-2xl p-3 backdrop-blur-sm shadow-2xl" style={{ width: 200 }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5"><span className="text-2xl">🤖</span><div><div className="text-xs font-bold text-purple-300">Scratch Bot</div><div className="text-[9px] text-neutral-500">{rQueue.length} queue · {rDone.length} done</div></div></div>
-                <button onClick={() => setGs((p) => ({ ...p, autoScratcherActive: !p.autoScratcherActive }))} className={`px-2 py-0.5 rounded text-[9px] font-bold ${gs.autoScratcherActive ? "bg-emerald-700 text-white" : "bg-neutral-700 text-neutral-400"}`}>{gs.autoScratcherActive ? "ON" : "OFF"}</button>
+            {/* Phone tutorial */}
+            {gs.totalCardsPlayed === 0 && gs.balance >= 10 && !washing && (
+              <div className="absolute top-3 right-3 z-40 animate-bounce">
+                <div className="bg-red-900 border-2 border-red-600 rounded-xl px-4 py-3 shadow-2xl max-w-[180px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">📞</span>
+                    <span className="text-[10px] text-red-300 font-bold">RING RING!</span>
+                  </div>
+                  <div className="text-[10px] text-neutral-300 leading-relaxed">
+                    Hey! Probier mal Lose aus! Schau im Shop links! 👈
+                  </div>
+                </div>
               </div>
-              {rQueue.length > 0 && <div className="mb-2"><div className="text-[8px] text-neutral-500 mb-0.5">Queue:</div><div className="flex gap-0.5 overflow-x-auto pb-1">{rQueue.slice(0, 10).map((d) => { const ct = gs.cardTypes.find((t) => t.id === gs.cards.find((c) => c.id === d.cardId)?.cardTypeId); return <div key={d.cardId} className="w-6 h-6 rounded bg-purple-900/50 border border-purple-700/30 flex items-center justify-center text-[10px] flex-shrink-0">{ct?.icon ?? "?"}</div>; })}</div></div>}
-              {rDone.length > 0 && <div><div className="text-[8px] text-neutral-500 mb-0.5">Done:</div><div className="flex gap-0.5 overflow-x-auto pb-1">{rDone.slice(-10).map((d) => { const card = gs.cards.find((c) => c.id === d.cardId); const ct = gs.cardTypes.find((t) => t.id === card?.cardTypeId); return <div key={d.cardId} onClick={() => openCard(d.cardId)} className={`w-8 h-8 rounded border flex items-center justify-center text-[10px] flex-shrink-0 cursor-pointer hover:scale-110 transition-all ${(card?.prize ?? 0) > 0 ? "bg-emerald-900/50 border-emerald-500/50" : "bg-red-900/50 border-red-500/50"}`}>{ct?.icon ?? "?"}</div>; })}</div></div>}
+            )}
+
+            {/* Center card or empty hint */}
+            {centerCard && activeCard && activeCT ? (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="text-center mb-2">
+                  <div className="text-sm font-bold" style={{ color: activeCT.colorFrom }}>
+                    {activeCT.icon} {activeCT.name}
+                  </div>
+                  {!activeCard.revealed && (
+                    <div className="text-[10px] text-neutral-400">Rubbel jede Zone frei!</div>
+                  )}
+                </div>
+                <ScratchCard
+                  key={activeCard.id}
+                  card={activeCard}
+                  cardType={activeCT}
+                  isActive={true}
+                  scratchPower={gs.scratchPower}
+                  onScratch={(cid, zi) => setGs((p) => scratchZone(p, cid, zi))}
+                  onPeek={(cid, zi) => setGs((p) => peekZone(p, cid, zi))}
+                  onDiscard={trashCard}
+                  onReveal={(cid) => setGs((p) => revealCard(p, cid))}
+                  onSelect={() => {}}
+                />
+                {activeCard.revealed && (
+                  <div className="flex gap-3 mt-3 animate-slide-down">
+                    <button onClick={() => finishCard(activeCard.id)}
+                      className="px-6 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-bold rounded-xl border border-neutral-500 transition-all active:scale-95">
+                      ✓ Zurück
+                    </button>
+                    <button onClick={() => trashCard(activeCard.id)}
+                      className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-bold rounded-xl border border-red-500 transition-all active:scale-95">
+                      🗑️ Weg
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Desk cards */
+              <>
+                {deskOnly.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center text-neutral-500/50 text-sm font-mono">
+                      {gs.balance < 10
+                        ? "Wasche einen Teller..."
+                        : "Kauf Lose im Shop"}
+                    </div>
+                  </div>
+                )}
+                {deskOnly.map((d) => {
+                  const card = gs.cards.find((c) => c.id === d.cardId);
+                  if (!card) return null;
+                  const ct = gs.cardTypes.find((t) => t.id === card.cardTypeId)!;
+                  return (
+                    <DeskCard key={d.cardId} card={card} cardType={ct} x={d.x} y={d.y} zIndex={d.z}
+                      onOpen={openCard} onTrash={trashCard} onSendRobot={() => {}}
+                      onDrag={(cid, x, y) => setDc((d) => d.map((c) => (c.cardId === cid ? { ...c, x, y } : c)))}
+                      onDragEnd={() => {}}
+                      onBringFront={(cid) => setDc((d) => d.map((c) => (c.cardId === cid ? { ...c, z: ++nz } : c)))}
+                      showRobot={false} />
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          {/* DAY JOB BAR */}
+          <div className="h-24 border-t border-neutral-700 flex items-center px-4 gap-4" style={{ background: "#1f2937" }}>
+            <div className="text-xs text-neutral-500 font-bold">DISHWASHING</div>
+            <div className="flex-1 flex items-center justify-center">
+              {!washing ? (
+                <button onClick={startWash}
+                  disabled={gs.dayJobCooldown > 0}
+                  className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+                    gs.dayJobCooldown > 0
+                      ? "bg-neutral-700 text-neutral-500"
+                      : "bg-green-600 text-white hover:bg-green-500 active:scale-95"
+                  }`}>
+                  {gs.dayJobCooldown > 0 ? `WAIT ${gs.dayJobCooldown}s` : "WASH!"}
+                </button>
+              ) : (
+                <WashGame progress={washingProgress} onComplete={doWash} onCancel={cancelWash} />
+              )}
+            </div>
+            <div className="text-xs text-green-400 font-bold">
+              {formatMoney(5 * gs.dayJobLevel)} PER
             </div>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* OVERLAYS */}
-      {showU && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowU(false)}><div className="bg-neutral-900 border-2 border-violet-500/50 rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold text-violet-300">⬆️ Upgrades</h2><button onClick={() => setShowU(false)} className="text-neutral-500 hover:text-white text-xl">✕</button></div><UpgradeShop state={gs} onBuy={buyU} /></div></div>}
-      {showP && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowP(false)}><div className="bg-neutral-900 border-2 border-purple-500/50 rounded-2xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold text-purple-300">✨ Prestige</h2><button onClick={() => setShowP(false)} className="text-neutral-500 hover:text-white">✕</button></div><div className="bg-purple-950/50 rounded-xl p-4 mb-4 border border-purple-800/30"><div className="text-2xl font-bold text-purple-200">{gs.jackPoints} 💎</div><button onClick={prestige_} disabled={gs.totalEarned < 1000000} className={`w-full py-2 rounded-lg font-bold text-sm mt-2 ${gs.totalEarned >= 1000000 ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white animate-pulse" : "bg-neutral-700 text-neutral-500"}`}>{gs.totalEarned >= 1000000 ? "✨ PRESTIGE ✨" : `Need ${formatMoney(1000000 - gs.totalEarned)} more`}</button></div><div className="space-y-1.5">{gs.prestigeUpgrades.map((u) => <div key={u.id} className={`flex items-center justify-between p-2 rounded-lg border ${u.purchased ? "bg-purple-900/30 border-purple-600/30" : "bg-neutral-800/50 border-neutral-700/30"}`}><div className="flex items-center gap-2"><span className="text-lg">{u.icon}</span><div><div className={`text-xs font-bold ${u.purchased ? "text-purple-300" : "text-white"}`}>{u.name}</div><div className="text-[10px] text-neutral-400">{u.description}</div></div></div>{u.purchased ? <span className="text-xs text-purple-400 font-bold">✓</span> : <button onClick={() => buyP(u.id)} disabled={gs.jackPoints < u.cost} className={`px-2 py-1 rounded text-xs font-bold ${gs.jackPoints >= u.cost ? "bg-purple-700 text-white" : "bg-neutral-700 text-neutral-500"}`}>{u.cost} 💎</button>}</div>)}</div></div></div>}
+      {/* UPGRADES OVERLAY */}
+      {showUpgrades && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowUpgrades(false)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-green-400">⬆️ Upgrades</h2>
+              <button onClick={() => setShowUpgrades(false)} className="text-neutral-500 hover:text-white text-xl">✕</button>
+            </div>
+            {["luck", "power", "area", "multi", "auto", "qol"].map((cat) => {
+              const ups = gs.upgrades.filter((u) => u.category === cat);
+              if (ups.length === 0) return null;
+              return (
+                <div key={cat} className="mb-3">
+                  <div className="text-xs font-bold text-neutral-500 mb-1 uppercase">{cat}</div>
+                  {ups.map((u) => {
+                    const canBuy = gs.balance >= u.cost;
+                    const hasPrereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
+                    return (
+                      <div key={u.id} className={`flex items-center justify-between py-1 px-2 rounded mb-0.5 ${u.purchased ? "bg-emerald-900/20" : !hasPrereq ? "opacity-30" : "hover:bg-neutral-800"}`}>
+                        <span className={`text-xs ${u.purchased ? "text-emerald-400" : "text-neutral-300"}`}>
+                          {u.icon} {u.name}
+                        </span>
+                        {u.purchased ? <span className="text-emerald-500 text-[10px]">✓</span>
+                          : hasPrereq ? <button onClick={() => setGs((p) => buyUpgrade(p, u.id))} disabled={!canBuy}
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold ${canBuy ? "bg-violet-700 text-white" : "bg-neutral-700 text-neutral-500"}`}>{formatMoney(u.cost)}</button>
+                          : <span className="text-neutral-700 text-[10px]">🔒</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-      <div className="fixed bottom-4 right-56 z-50 flex flex-col gap-2 max-w-xs">{gs.notifications.slice(-3).map((n) => <NotificationToast key={n.id} notification={n} onDismiss={dismissN} />)}</div>
-      {gs.showJackpot && <JackpotOverlay amount={gs.jackpotAmount} onDismiss={dismissJ} />}
+      {/* PRESTIGE OVERLAY */}
+      {showPrestige && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowPrestige(false)}>
+          <div className="bg-neutral-900 border border-purple-500/50 rounded-2xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-purple-300">✨ Prestige</h2>
+              <button onClick={() => setShowPrestige(false)} className="text-neutral-500 hover:text-white">✕</button>
+            </div>
+            <div className="bg-purple-950/50 rounded-xl p-4 mb-4 border border-purple-800/30">
+              <div className="text-2xl font-bold text-purple-200">{gs.jackPoints} 💎</div>
+              <button onClick={() => setGs((p) => prestige(p))} disabled={gs.totalEarned < 1000000}
+                className={`w-full py-2 rounded-lg font-bold text-sm mt-2 ${gs.totalEarned >= 1000000 ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white animate-pulse" : "bg-neutral-700 text-neutral-500"}`}>
+                {gs.totalEarned >= 1000000 ? "✨ PRESTIGE ✨" : `Need ${formatMoney(1000000 - gs.totalEarned)} more`}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {gs.prestigeUpgrades.map((u) => (
+                <div key={u.id} className={`flex items-center justify-between p-2 rounded-lg border ${u.purchased ? "bg-purple-900/30 border-purple-600/30" : "bg-neutral-800/50 border-neutral-700/30"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{u.icon}</span>
+                    <div>
+                      <div className={`text-xs font-bold ${u.purchased ? "text-purple-300" : "text-white"}`}>{u.name}</div>
+                      <div className="text-[10px] text-neutral-400">{u.description}</div>
+                    </div>
+                  </div>
+                  {u.purchased ? <span className="text-xs text-purple-400 font-bold">✓</span>
+                    : <button onClick={() => setGs((p) => buyPrestigeUpgrade(p, u.id))} disabled={gs.jackPoints < u.cost}
+                      className={`px-2 py-1 rounded text-xs font-bold ${gs.jackPoints >= u.cost ? "bg-purple-700 text-white" : "bg-neutral-700 text-neutral-500"}`}>{u.cost} 💎</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NOTIFICATIONS */}
+      <div className="fixed bottom-28 right-4 z-50 flex flex-col gap-2 max-w-xs">
+        {gs.notifications.slice(-3).map((n) => <NotificationToast key={n.id} notification={n} onDismiss={(id) => setGs((p) => dismissNotification(p, id))} />)}
+      </div>
+      {gs.showJackpot && <JackpotOverlay amount={gs.jackpotAmount} onDismiss={() => setGs((p) => ({ ...p, showJackpot: false }))} />}
     </div>
   );
 }
 
+// Wash mini-game component
+function WashGame({ progress, onComplete, onCancel }: { progress: number; onComplete: (pct: number) => void; onCancel: () => void }) {
+  const [clean, setClean] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const initRef = useRef(false);
+
+  useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.width = 200;
+    canvas.height = 60;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#8B7355";
+    ctx.fillRect(0, 0, 200, 60);
+    for (let i = 0; i < 20; i++) {
+      ctx.beginPath();
+      ctx.arc(Math.random() * 200, Math.random() * 60, 3 + Math.random() * 8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(90,60,20,${0.3 + Math.random() * 0.3})`;
+      ctx.fill();
+    }
+  }, []);
+
+  const handleScrub = useCallback((e: React.PointerEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (200 / rect.width);
+    const y = (e.clientY - rect.top) * (60 / rect.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    setClean((prev) => {
+      const next = Math.min(100, prev + 2);
+      onComplete(next);
+      return next;
+    });
+  }, [onComplete]);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="text-[10px] text-neutral-500">Scrub the plate!</div>
+      <canvas ref={canvasRef} className="rounded cursor-crosshair" style={{ width: 200, height: 60, touchAction: "none" }}
+        onPointerDown={(e) => { e.preventDefault(); handleScrub(e); }}
+        onPointerMove={(e) => { if (e.buttons > 0) handleScrub(e); }} />
+      <div className="w-48 h-2 bg-neutral-700 rounded-full overflow-hidden">
+        <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${clean}%` }} />
+      </div>
+      <button onClick={onCancel} className="text-[10px] text-neutral-500 hover:text-red-400">Cancel</button>
+    </div>
+  );
+}
