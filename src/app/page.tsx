@@ -7,3 +7,4 @@ const Game = dynamic(() => import("@/components/Game"), { ssr: false });
 export default function Home() {
   return <Game />;
 }
+// rebuild 1774905954
