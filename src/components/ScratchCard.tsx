@@ -284,14 +284,6 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         </div>
       )}
 
-      {/* Instruction */}
-      {!dragging && isActive && !card.revealed && (
-        <div style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,0.6)", borderRadius: 12, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4, pointerEvents: "none", zIndex: 10 }}>
-          <span style={{ fontSize: 14 }}>🪙</span>
-          <span style={{ fontSize: 10, color: "#fbbf24", fontWeight: "bold" }}>Rubbeln!</span>
-        </div>
-      )}
-
       {/* Result */}
       {card.revealed && card.prize > 0 && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -315,17 +307,8 @@ export default function ScratchCard({ card, cardType, isActive, scratchPower, on
         </div>
       )}
 
-      {/* Buttons */}
-      {!card.revealed && isActive && <>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDiscard(card.id)}
-          style={{ position: "absolute", bottom: 8, right: 8, zIndex: 10, background: "#dc2626", color: "white", fontSize: 12, padding: "8px 14px", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer" }}>🗑️</button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onReveal(card.id)}
-          style={{ position: "absolute", bottom: 8, left: 8, zIndex: 10, background: "#555", color: "white", fontSize: 12, padding: "8px 14px", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer" }}>👁️</button>
-      </>}
-
       {!isActive && !card.revealed && (
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: 600 }}>Klicken zum Rubbeln</span>
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
         </div>
       )}
     </div>

@@ -334,7 +334,6 @@ export function buyCard(
     balance: state.balance - cardType.baseCost,
     totalSpent: state.totalSpent + cardType.baseCost,
     cards: [...state.cards, card],
-    activeCardId: card.id,
     selectedCardTypeId: cardTypeId,
   };
 }
