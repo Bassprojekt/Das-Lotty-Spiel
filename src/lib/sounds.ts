@@ -224,3 +224,30 @@ export function playTrashSound() {
     osc.stop(ctx.currentTime + 0.2);
   } catch {}
 }
+
+// Phone ring sound - old fashioned ring
+export function playPhoneRing() {
+  if (muted) return;
+  try {
+    const ctx = getCtx();
+    // Two-tone ring
+    for (let ring = 0; ring < 2; ring++) {
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.value = 440;
+      osc2.type = "sine";
+      osc2.frequency.value = 480;
+      gain.gain.value = 0.06;
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3 * (ring + 1));
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc1.start(ctx.currentTime + 0.4 * ring);
+      osc2.start(ctx.currentTime + 0.4 * ring);
+      osc1.stop(ctx.currentTime + 0.4 * ring + 0.3);
+      osc2.stop(ctx.currentTime + 0.4 * ring + 0.3);
+    }
+  } catch {}
+}

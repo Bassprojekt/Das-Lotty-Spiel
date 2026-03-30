@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { GameState } from "@/lib/types";
-import { setMuted, initAudio } from "@/lib/sounds";
+import { setMuted, initAudio, playPhoneRing } from "@/lib/sounds";
 import {
   createInitialState, buyCard, buyCardBatch, unlockCardType,
   scratchZone, peekZone, discardCard, revealCard,
@@ -50,6 +50,15 @@ export default function Game() {
     window.addEventListener("click", handler);
     return () => window.removeEventListener("click", handler);
   }, []);
+
+  // Play phone ring when first money earned
+  const phoneRung = useRef(false);
+  useEffect(() => {
+    if (gs.balance >= 10 && gs.totalCardsPlayed === 0 && !phoneRung.current) {
+      phoneRung.current = true;
+      setTimeout(() => playPhoneRing(), 500);
+    }
+  }, [gs.balance, gs.totalCardsPlayed]);
 
   const onDrag = useCallback((cardId: string, x: number, y: number) => {
     const desk = deskRef.current;
@@ -275,11 +284,40 @@ export default function Game() {
               {/* Fan */}
               {gs.upgrades.find((u) => u.id === "fan" && u.purchased) && <FanGadget onFanAll={fanAll} cardCount={deskOnly.length} />}
 
-              {/* Empty hint */}
-              {deskOnly.length === 0 && rQueue.length === 0 && rDone.length === 0 && (
+              {/* Empty hint - simple text */}
+              {deskOnly.length === 0 && rQueue.length === 0 && rDone.length === 0 && !gs.autoScratcherActive && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center opacity-40">
-                    {gs.balance < 10 ? <><div className="text-5xl mb-3">🍽️</div><div className="text-sm text-amber-300 font-mono">Wash dishes to earn money!</div></> : <><div className="text-5xl mb-3">🎫</div><div className="text-sm text-emerald-300 font-mono">Buy cards from the shop!</div></>}
+                  <div className="text-center opacity-50">
+                    {gs.balance < 10 ? (
+                      <div className="text-sm text-amber-400/70 font-mono">
+                        Wasche einen Teller um dein erstes Geld zu verdienen
+                      </div>
+                    ) : gs.totalCardsPlayed === 0 ? (
+                      <div className="text-sm text-emerald-400/70 font-mono">
+                        Kauf dein erstes Los im Shop!
+                      </div>
+                    ) : (
+                      <div className="text-sm text-neutral-500 font-mono">
+                        Kauf neue Lose im Shop
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Phone ringing - tutorial */}
+              {gs.totalCardsPlayed === 0 && gs.balance >= 10 && !wash && (
+                <div className="absolute top-3 right-3 z-40 animate-bounce">
+                  <div className="bg-red-900 border-2 border-red-600 rounded-xl px-4 py-3 shadow-2xl shadow-red-900/50 max-w-[200px]">
+                    {/* Phone */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">📞</span>
+                      <div className="text-[10px] text-red-300 font-bold">RING RING!</div>
+                    </div>
+                    {/* Message */}
+                    <div className="text-[10px] text-neutral-300 leading-relaxed">
+                      Hey! Ich hab hier ein paar Lose für dich. Probier doch mal eins aus! Schau im Shop nach links. 👈
+                    </div>
                   </div>
                 </div>
               )}
