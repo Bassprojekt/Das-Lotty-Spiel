@@ -8,4 +8,3 @@ export default function Home() {
   return <Game />;
 }
 // rebuild 1774905954
-// restart 1774966033
