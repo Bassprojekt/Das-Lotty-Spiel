@@ -115,25 +115,25 @@ export default function Game() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "#111827" }}>
-      {/* HEADER */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-neutral-800" style={{ background: "#1f2937" }}>
+      {/* HEADER - bright green text like original */}
+      <header className="flex items-center justify-between px-4 py-2 border-b border-neutral-700" style={{ background: "#0f172a" }}>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-green-400 font-mono font-bold">
-            {cat ? `SCENE: ${cat.name.toUpperCase()}` : "LUCKY SCRATCH"}
+          <span className="text-sm font-bold tracking-wide" style={{ color: "#22c55e", fontFamily: "monospace" }}>
+            SCENE: {cat?.name.toUpperCase() ?? "STARTER PACK"}
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setShowPrestige(true)} className="text-xs text-neutral-400 hover:text-white transition-colors">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowPrestige(true)} className="text-xs text-neutral-300 hover:text-white transition-colors font-medium">
             Prestige
           </button>
-          <button onClick={() => setShowUpgrades(true)} className="text-xs text-neutral-400 hover:text-white transition-colors">
+          <button onClick={() => setShowUpgrades(true)} className="text-xs text-neutral-300 hover:text-white transition-colors font-medium">
             Stats
           </button>
           <button onClick={() => { const m = !muted; setMutedState(m); setMuted(m); }}
             className="text-xs text-neutral-400 hover:text-white transition-colors">
             {muted ? "🔇" : "🔊"}
           </button>
-          <span className="text-lg font-bold text-green-400 font-mono">
+          <span className="text-lg font-bold font-mono" style={{ color: "#22c55e" }}>
             {formatMoney(gs.balance)}
           </span>
         </div>
@@ -348,55 +348,38 @@ export default function Game() {
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR - Upgrades */}
-        <div className="w-52 flex-shrink-0 flex flex-col border-l border-neutral-800" style={{ background: "#1a1f2e" }}>
-          <div className="p-2 border-b border-neutral-800">
-            <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1">Upgrades</div>
+        {/* RIGHT SIDEBAR - Upgrades with category list */}
+        <div className="w-52 flex-shrink-0 flex flex-col border-l border-neutral-700" style={{ background: "#111827" }}>
+          <div className="p-2 border-b border-neutral-700">
+            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: "#22c55e" }}>Upgrade</div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {["luck", "power", "area", "multi", "auto", "qol"].map((cat) => {
-              const ups = gs.upgrades.filter((u) => u.category === cat);
-              if (ups.every((u) => !u.purchased) && ups.some((u) => {
-                const prereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
-                return !prereq;
-              })) {
-                return null;
-              }
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {gs.upgrades.map((u) => {
+              const canBuy = gs.balance >= u.cost;
+              const hasPrereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
+              if (!hasPrereq && !u.purchased) return null;
               return (
-                <div key={cat}>
-                  <div className="text-[10px] font-bold text-neutral-500 uppercase mb-0.5">{cat}</div>
-                  {ups.map((u) => {
-                    const canBuy = gs.balance >= u.cost;
-                    const hasPrereq = u.prerequisite ? gs.upgrades.find((p) => p.id === u.prerequisite)?.purchased ?? false : true;
-                    if (!hasPrereq && !u.purchased) return null;
-                    return (
-                      <div key={u.id} className={`flex items-center justify-between py-1 px-1 rounded text-[10px] mb-0.5 ${
-                        u.purchased ? "bg-emerald-900/20" : ""
-                      }`}>
-                        <span className={`truncate flex-1 ${u.purchased ? "text-emerald-400" : "text-neutral-300"}`}>
-                          {u.icon} {u.name}
-                        </span>
-                        {u.purchased ? (
-                          <span className="text-emerald-500 text-[9px]">✓</span>
-                        ) : (
-                          <button onClick={() => setGs((p) => buyUpgrade(p, u.id))} disabled={!canBuy}
-                            className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                              canBuy ? "bg-violet-700 text-white" : "bg-neutral-700 text-neutral-600"
-                            }`}>{formatMoney(u.cost)}</button>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div key={u.id} className={`flex items-center justify-between py-1.5 px-1.5 rounded text-[10px] ${
+                  u.purchased ? "bg-emerald-900/20 border border-emerald-800/30" : "hover:bg-neutral-800/50"
+                }`}>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    {u.purchased ? <span className="text-emerald-400 font-bold text-[11px]">✓</span> : <span className="text-neutral-600">○</span>}
+                    <span className={`truncate ${u.purchased ? "text-emerald-300" : "text-neutral-300"}`}>{u.name}</span>
+                  </div>
+                  {!u.purchased && (
+                    <button onClick={() => setGs((p) => buyUpgrade(p, u.id))} disabled={!canBuy}
+                      className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        canBuy ? "bg-neutral-600 text-white hover:bg-neutral-500" : "bg-neutral-800 text-neutral-600"
+                      }`}>{formatMoney(u.cost)}</button>
+                  )}
                 </div>
               );
             })}
           </div>
-
-          {/* Prestige button */}
-          <div className="border-t border-neutral-800 p-2">
-            <button onClick={() => setShowPrestige(true)} className="w-full text-left">
-              <div className="text-[10px] font-bold text-purple-400 uppercase">✨ Prestige</div>
-              <div className="text-[9px] text-neutral-500">
+          <div className="border-t border-neutral-700 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#a855f7" }}>Prestige</div>
+            <button onClick={() => setShowPrestige(true)} className="w-full text-left py-1 rounded hover:bg-neutral-800/50 transition-colors">
+              <div className="text-[9px] text-neutral-400">
                 {gs.totalPrestiges > 0 ? `${gs.totalPrestiges}x · ${gs.jackPoints} JP` : "Earn $1M to unlock"}
               </div>
             </button>
