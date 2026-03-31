@@ -227,9 +227,9 @@ export default function Game() {
           <div ref={deskRef} className="flex-1 relative overflow-hidden"
             style={{
               background: `
-                repeating-linear-gradient(0deg, transparent 0px, transparent 58px, rgba(80,50,20,0.3) 58px, rgba(80,50,20,0.3) 60px),
-                repeating-linear-gradient(90deg, transparent 0px, transparent 120px, rgba(60,40,15,0.2) 120px, rgba(60,40,15,0.2) 122px),
-                linear-gradient(180deg, #c49a3c 0%, #b8892f 8%, #d4a843 16%, #c49a3c 24%, #b08025 32%, #c49a3c 40%, #d4a843 48%, #b8892f 56%, #c49a3c 64%, #d4a843 72%, #b08025 80%, #c49a3c 88%, #b8892f 96%, #d4a843 100%)
+                repeating-linear-gradient(90deg, transparent 0px, transparent 118px, rgba(60,35,10,0.4) 118px, rgba(60,35,10,0.4) 120px),
+                repeating-linear-gradient(0deg, transparent 0px, transparent 28px, rgba(80,50,20,0.15) 28px, rgba(80,50,20,0.15) 29px),
+                linear-gradient(90deg, #a07830 0%, #b0892f 20%, #9a7530 40%, #a88035 60%, #9d7830 80%, #a07830 100%)
               `,
             }}>
 
